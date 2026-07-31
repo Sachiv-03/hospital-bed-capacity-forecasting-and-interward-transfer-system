@@ -1,0 +1,186 @@
+import React, { useEffect, useState } from 'react';
+import { fetchHealthStatus } from '../services/api';
+import { HealthStatus } from '../types';
+import {
+  Activity,
+  BedDouble,
+  Building2,
+  TrendingUp,
+  ArrowRightLeft,
+  CheckCircle2,
+  AlertCircle,
+  Database,
+  Server,
+  Cpu,
+  Layers,
+} from 'lucide-react';
+
+export const DashboardPage: React.FC = () => {
+  const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchHealthStatus()
+      .then((data) => {
+        setHealth(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch backend health status:', err);
+        setError('FastAPI Server unreachable on localhost:8000');
+        setLoading(false);
+      });
+  }, []);
+
+  return (
+    <div className="space-y-8 animate-fadeIn">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+            Hospital Bed Capacity Forecasting Dashboard
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Real-time Bed Occupancy, Predictive Analytics & Intelligent Inter-Ward Transfer System (Phase 1 Baseline)
+          </p>
+        </div>
+
+        {/* Backend API Health Status Badge */}
+        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs text-xs font-semibold">
+          {loading ? (
+            <div className="flex items-center gap-2 text-slate-500">
+              <span className="w-2 h-2 rounded-full bg-slate-400 animate-ping" />
+              Checking Backend API...
+            </div>
+          ) : error ? (
+            <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+              <AlertCircle className="w-4 h-4" />
+              <span>{error}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>FastAPI Connected ({health?.service} v{health?.version})</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Overview Cards (Phase 1 Enterprise Foundation Placeholders) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* Total Beds Card */}
+        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Total Hospital Beds
+            </span>
+            <div className="w-10 h-10 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+              <BedDouble className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-baseline gap-2">
+            <span className="text-3xl font-black text-slate-900 dark:text-white">--</span>
+            <span className="text-xs text-slate-400">Phase 2 Model Ready</span>
+          </div>
+          <p className="text-xs text-slate-500 mt-2">Configured in PostgreSQL schema</p>
+        </div>
+
+        {/* Ward Count Card */}
+        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Active Wards
+            </span>
+            <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <Building2 className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-baseline gap-2">
+            <span className="text-3xl font-black text-slate-900 dark:text-white">--</span>
+            <span className="text-xs text-slate-400">ICU / ER / General</span>
+          </div>
+          <p className="text-xs text-slate-500 mt-2">Inter-ward routing topology</p>
+        </div>
+
+        {/* Forecast Capacity Card */}
+        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              24h AI Occupancy Forecast
+            </span>
+            <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-baseline gap-2">
+            <span className="text-3xl font-black text-slate-900 dark:text-white">-- %</span>
+            <span className="text-xs text-amber-600 font-semibold">Ready for ML</span>
+          </div>
+          <p className="text-xs text-slate-500 mt-2">LSTM / Time-series engine hook</p>
+        </div>
+
+        {/* Transfers Pending Card */}
+        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Inter-Ward Transfers
+            </span>
+            <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+              <ArrowRightLeft className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-baseline gap-2">
+            <span className="text-3xl font-black text-slate-900 dark:text-white">--</span>
+            <span className="text-xs text-indigo-600 font-semibold">Queue Pipeline</span>
+          </div>
+          <p className="text-xs text-slate-500 mt-2">Optimization solver ready</p>
+        </div>
+      </div>
+
+      {/* Architecture Verification Banner */}
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-sky-900 via-indigo-900 to-slate-900 text-white shadow-xl relative overflow-hidden">
+        <div className="relative z-10 space-y-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 border border-sky-400/30 text-sky-300 text-xs font-bold uppercase tracking-wider">
+            <Layers className="w-3.5 h-3.5" /> Phase 1 Architecture Foundation Completed
+          </div>
+
+          <h2 className="text-xl sm:text-2xl font-extrabold">
+            Enterprise Healthcare Platform Initialized
+          </h2>
+
+          <p className="text-sm text-slate-300 max-w-3xl leading-relaxed">
+            The frontend base layout, navigation system, dark-mode engine, FastAPI backend API router,
+            SQLAlchemy ORM database pool, and Docker container setup have been successfully configured following enterprise software standards.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+            <div className="p-3.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-3">
+              <Server className="w-5 h-5 text-sky-400" />
+              <div>
+                <p className="text-xs font-bold">FastAPI Backend</p>
+                <p className="text-[11px] text-slate-300">Swagger UI at /docs</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-3">
+              <Database className="w-5 h-5 text-emerald-400" />
+              <div>
+                <p className="text-xs font-bold">PostgreSQL Database</p>
+                <p className="text-[11px] text-slate-300">hospital_db configured</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-3">
+              <Cpu className="w-5 h-5 text-indigo-400" />
+              <div>
+                <p className="text-xs font-bold">React + Vite + TS</p>
+                <p className="text-[11px] text-slate-300">Tailwind CSS & Icons</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
