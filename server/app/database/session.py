@@ -1,30 +1,4 @@
-from typing import Generator
-from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
-from app.core.config import settings
+# Re-export database objects from database.py for backward compatibility
+from app.database.database import engine, SessionLocal, Base, get_db
 
-# Create SQLAlchemy Engine
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,
-    echo=False,
-)
-
-# Create SessionLocal class for DB sessions
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Declarative Base Class for ORM models
-Base = declarative_base()
-
-
-# FastAPI Dependency for Database Session
-def get_db() -> Generator:
-    """
-    Dependency that provides a database session to API route handlers.
-    Ensures session clean up after request completion.
-    """
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+__all__ = ["engine", "SessionLocal", "Base", "get_db"]

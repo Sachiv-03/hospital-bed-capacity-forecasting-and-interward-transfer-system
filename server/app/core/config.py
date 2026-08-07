@@ -9,8 +9,8 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
 
-    # Database
-    DATABASE_URL: str = "postgresql://hospital_user:hospital_password@localhost:5432/hospital_db"
+    # Database (Neon PostgreSQL Cloud Connection)
+    DATABASE_URL: str = "postgresql://neondb_owner:YOUR_PASSWORD@ep-sample-123456.us-east-2.aws.neon.tech/neondb?sslmode=require"
 
     # Security
     SECRET_KEY: str = "dev_secret_key_change_in_production_hospital_bed_system_987654321"

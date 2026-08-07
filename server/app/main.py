@@ -1,23 +1,38 @@
-from fastapi import FastAPI
+# pyrefly: ignore [missing-import]
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
+import app.models  # Ensure models are loaded for table creation
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.database.session import Base, engine, get_db
+
+# Create database tables if they do not exist
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print(f"Database table creation notice: {e}")
 
 # OpenAPI Metadata & Tags
 tags_metadata = [
     {
         "name": "System Health",
-        "description": "API health checks, system diagnostics, and readiness monitoring.",
+        "description": "API health checks, system diagnostics, and live PostgreSQL ping monitoring.",
+    },
+    {
+        "name": "Authentication & Authorization",
+        "description": "JWT Register, Login, Token Refresh, User Profile (/me), and Logout endpoints.",
     },
     {
         "name": "Bed Capacity Forecasting",
-        "description": "Phase 1 Foundation Placeholder - AI forecasting models reserved for Phase 2.",
+        "description": "AI forecasting models reserved for future phase.",
     },
     {
         "name": "Inter-Ward Transfers",
-        "description": "Phase 1 Foundation Placeholder - Intelligent transfer routing reserved for Phase 2.",
+        "description": "Intelligent transfer routing reserved for future phase.",
     },
 ]
 
@@ -27,8 +42,8 @@ app = FastAPI(
     description="""
 ### Enterprise Hospital Bed Capacity Forecasting & Intelligent Inter-Ward Transfer System
 
-Production-Ready Foundation (Phase 1)
-Providing scalable micro-architecture, database connection management, health check diagnostics, and OpenAPI schemas.
+Production-Ready Foundation & JWT Authentication Engine (Phase 1 & Phase 2)
+Providing scalable micro-architecture, database connection management, RBAC authorization, health check diagnostics, and OpenAPI schemas.
     """,
     openapi_tags=tags_metadata,
     docs_url="/docs",
@@ -46,19 +61,29 @@ if settings.CORS_ORIGINS:
         allow_headers=["*"],
     )
 
-# Also expose direct root /health route for simple health checks
+
+# Direct root health endpoint with DB connection check
 @app.get(
     "/health",
     tags=["System Health"],
     summary="Root Health Check",
-    description="Direct root health endpoint",
+    description="Direct root health endpoint with live PostgreSQL database connectivity check",
 )
-def root_health():
+def root_health(db: Session = Depends(get_db)):
+    db_status = "disconnected"
+    try:
+        db.execute(text("SELECT 1"))
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"disconnected ({str(e)})"
+
     return {
-        "status": "healthy",
+        "status": "healthy" if db_status == "connected" else "degraded",
         "service": "Hospital Bed Capacity Forecasting API",
         "version": settings.VERSION,
+        "database": db_status,
     }
+
 
 # Root redirect to OpenAPI documentation
 @app.get("/", include_in_schema=False)

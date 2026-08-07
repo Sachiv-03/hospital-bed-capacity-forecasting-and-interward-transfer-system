@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchHealthStatus } from '../services/api';
 import { HealthStatus } from '../types';
+import { useAuth } from '../context/AuthContext';
 import {
   Activity,
   BedDouble,
@@ -13,9 +14,11 @@ import {
   Server,
   Cpu,
   Layers,
+  ShieldCheck,
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
+  const { user } = useAuth();
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,16 +45,16 @@ export const DashboardPage: React.FC = () => {
             Hospital Bed Capacity Forecasting Dashboard
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Real-time Bed Occupancy, Predictive Analytics & Intelligent Inter-Ward Transfer System (Phase 1 Baseline)
+            Welcome back, <span className="font-bold text-sky-600 dark:text-sky-400">{user?.full_name}</span> ({user?.role?.toUpperCase()}) • Real-time Bed Occupancy & Transfer System
           </p>
         </div>
 
-        {/* Backend API Health Status Badge */}
+        {/* Backend & Live PostgreSQL Health Status Badge */}
         <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs text-xs font-semibold">
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500">
               <span className="w-2 h-2 rounded-full bg-slate-400 animate-ping" />
-              Checking Backend API...
+              Testing PostgreSQL Connection...
             </div>
           ) : error ? (
             <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
@@ -61,13 +64,13 @@ export const DashboardPage: React.FC = () => {
           ) : (
             <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="w-4 h-4" />
-              <span>FastAPI Connected ({health?.service} v{health?.version})</span>
+              <span>FastAPI & PostgreSQL ({health?.database || 'connected'})</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Overview Cards (Phase 1 Enterprise Foundation Placeholders) */}
+      {/* Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Total Beds Card */}
         <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-shadow">
@@ -81,12 +84,12 @@ export const DashboardPage: React.FC = () => {
           </div>
           <div className="mt-4 flex items-baseline gap-2">
             <span className="text-3xl font-black text-slate-900 dark:text-white">--</span>
-            <span className="text-xs text-slate-400">Phase 2 Model Ready</span>
+            <span className="text-xs text-slate-400">Phase 3 Module</span>
           </div>
           <p className="text-xs text-slate-500 mt-2">Configured in PostgreSQL schema</p>
         </div>
 
-        {/* Ward Count Card */}
+        {/* Active Wards Card */}
         <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -103,7 +106,7 @@ export const DashboardPage: React.FC = () => {
           <p className="text-xs text-slate-500 mt-2">Inter-ward routing topology</p>
         </div>
 
-        {/* Forecast Capacity Card */}
+        {/* Forecast Occupancy Card */}
         <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -117,10 +120,10 @@ export const DashboardPage: React.FC = () => {
             <span className="text-3xl font-black text-slate-900 dark:text-white">-- %</span>
             <span className="text-xs text-amber-600 font-semibold">Ready for ML</span>
           </div>
-          <p className="text-xs text-slate-500 mt-2">LSTM / Time-series engine hook</p>
+          <p className="text-xs text-slate-500 mt-2">Time-series forecasting hook</p>
         </div>
 
-        {/* Transfers Pending Card */}
+        {/* Inter-Ward Transfers Card */}
         <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -142,16 +145,15 @@ export const DashboardPage: React.FC = () => {
       <div className="p-6 rounded-2xl bg-gradient-to-r from-sky-900 via-indigo-900 to-slate-900 text-white shadow-xl relative overflow-hidden">
         <div className="relative z-10 space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 border border-sky-400/30 text-sky-300 text-xs font-bold uppercase tracking-wider">
-            <Layers className="w-3.5 h-3.5" /> Phase 1 Architecture Foundation Completed
+            <Layers className="w-3.5 h-3.5" /> Phase 1 Foundation & Phase 2 JWT Authentication Active
           </div>
 
           <h2 className="text-xl sm:text-2xl font-extrabold">
-            Enterprise Healthcare Platform Initialized
+            Enterprise Healthcare Platform & PostgreSQL Database Ready
           </h2>
 
           <p className="text-sm text-slate-300 max-w-3xl leading-relaxed">
-            The frontend base layout, navigation system, dark-mode engine, FastAPI backend API router,
-            SQLAlchemy ORM database pool, and Docker container setup have been successfully configured following enterprise software standards.
+            The database connection management engine, SQLAlchemy User ORM models, bcrypt password security, JWT token auto-refresh interceptors, role-based route guards, and health diagnostics are fully configured.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
@@ -167,15 +169,15 @@ export const DashboardPage: React.FC = () => {
               <Database className="w-5 h-5 text-emerald-400" />
               <div>
                 <p className="text-xs font-bold">PostgreSQL Database</p>
-                <p className="text-[11px] text-slate-300">hospital_db configured</p>
+                <p className="text-[11px] text-slate-300">Status: {health?.database || 'connected'}</p>
               </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-3">
-              <Cpu className="w-5 h-5 text-indigo-400" />
+              <ShieldCheck className="w-5 h-5 text-indigo-400" />
               <div>
-                <p className="text-xs font-bold">React + Vite + TS</p>
-                <p className="text-[11px] text-slate-300">Tailwind CSS & Icons</p>
+                <p className="text-xs font-bold">JWT & RBAC Security</p>
+                <p className="text-[11px] text-slate-300">Active User: {user?.role}</p>
               </div>
             </div>
           </div>

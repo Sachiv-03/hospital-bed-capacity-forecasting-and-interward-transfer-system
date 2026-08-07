@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
   Users,
@@ -18,8 +19,7 @@ import {
   Activity,
   Menu,
   X,
-  ChevronRight,
-  ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 
@@ -47,7 +47,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
       className={cn(
         'flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group',
         active
-          ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 font-semibold shadow-sm border-l-4 border-sky-600'
+          ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 font-semibold shadow-xs border-l-4 border-sky-600'
           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-200'
       )}
     >
@@ -72,7 +72,10 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
 };
 
 export const DashboardLayout: React.FC = () => {
+  const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     return localStorage.getItem('theme') === 'dark';
   });
@@ -92,6 +95,11 @@ export const DashboardLayout: React.FC = () => {
     setIsDarkMode((prev) => !prev);
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Patients', path: '/patients', icon: Users },
@@ -103,6 +111,17 @@ export const DashboardLayout: React.FC = () => {
     { name: 'Reports', path: '/reports', icon: FileText },
     { name: 'Settings', path: '/settings', icon: Settings },
   ];
+
+  // Helper for initials
+  const getInitials = (name?: string) => {
+    if (!name) return 'HP';
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .substring(0, 2)
+      .toUpperCase();
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
@@ -169,12 +188,18 @@ export const DashboardLayout: React.FC = () => {
 
           {/* User Profile */}
           <div className="flex items-center gap-3 pl-1">
-            <div className="w-8 h-8 rounded-full bg-sky-600 flex items-center justify-center text-white font-bold text-xs shadow-sm ring-2 ring-sky-500/20">
-              DR
+            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow-sm ring-2 ring-sky-500/20">
+              {getInitials(user?.full_name)}
             </div>
             <div className="hidden lg:block text-left">
-              <p className="text-xs font-bold leading-tight text-slate-800 dark:text-slate-200">Dr. Sarah Jenkins</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">Chief Medical Officer</p>
+              <p className="text-xs font-bold leading-tight text-slate-800 dark:text-slate-200">
+                {user?.full_name || 'Healthcare Staff'}
+              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="px-1.5 py-0.2 text-[10px] font-bold uppercase rounded-md bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                  {user?.role || 'User'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -210,17 +235,17 @@ export const DashboardLayout: React.FC = () => {
             <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-3">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
               <div>
-                <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">System Connected</p>
-                <p className="text-[10px] text-emerald-600 dark:text-emerald-400">FastAPI & PostgreSQL Online</p>
+                <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">JWT Auth Session Active</p>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400">Authenticated as {user?.role}</p>
               </div>
             </div>
 
             <button
-              onClick={() => alert('Logout clicked (Authentication will be configured in future phases)')}
+              onClick={handleLogout}
               className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/50 transition-colors"
             >
               <LogOut className="w-5 h-5" />
-              <span>Logout</span>
+              <span>Logout ({user?.email?.split('@')[0]})</span>
             </button>
           </div>
         </aside>
@@ -234,12 +259,12 @@ export const DashboardLayout: React.FC = () => {
           {/* Footer */}
           <footer className="mt-12 pt-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2 max-w-7xl mx-auto w-full">
             <div>
-              © 2026 AI-Powered Hospital Bed Capacity & Transfer System. Enterprise Phase 1 Foundation.
+              © 2026 AI-Powered Hospital Bed Capacity & Transfer System. Enterprise Phase 2 Active.
             </div>
             <div className="flex items-center gap-4">
               <span>Platform Version 1.0.0</span>
               <span>•</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">PostgreSQL Connected</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">RBAC Security Active</span>
             </div>
           </footer>
         </main>
