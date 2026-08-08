@@ -1,7 +1,7 @@
 from enum import Enum
 from datetime import datetime
 from typing import List, Optional, Union
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class WardStatusEnum(str, Enum):
@@ -21,12 +21,12 @@ class WardTypeEnum(str, Enum):
 
 
 class WardBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255, example="Cardiology ICU A")
-    ward_type: WardTypeEnum = Field(default=WardTypeEnum.GENERAL, example="ICU")
-    department: str = Field(..., min_length=1, max_length=255, example="Cardiology")
-    floor: Union[str, int] = Field(..., example="Floor 2")
-    capacity: int = Field(..., gt=0, example=25, description="Capacity must be a positive integer")
-    description: Optional[str] = Field(None, example="Specialized intensive care unit for cardiac monitoring.")
+    name: str = Field(..., min_length=1, max_length=255, json_schema_extra={"example": "Cardiology ICU A"})
+    ward_type: WardTypeEnum = Field(default=WardTypeEnum.GENERAL, json_schema_extra={"example": "ICU"})
+    department: str = Field(..., min_length=1, max_length=255, json_schema_extra={"example": "Cardiology"})
+    floor: Union[str, int] = Field(..., json_schema_extra={"example": "Floor 2"})
+    capacity: int = Field(..., gt=0, json_schema_extra={"example": 25}, description="Capacity must be a positive integer")
+    description: Optional[str] = Field(None, json_schema_extra={"example": "Specialized intensive care unit for cardiac monitoring."})
 
     @field_validator("floor", mode="before")
     @classmethod
@@ -66,8 +66,7 @@ class WardResponse(WardBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WardListResponse(BaseModel):

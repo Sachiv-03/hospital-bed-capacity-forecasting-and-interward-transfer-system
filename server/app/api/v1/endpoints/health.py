@@ -9,10 +9,10 @@ router = APIRouter()
 
 
 class HealthResponse(BaseModel):
-    status: str = Field(..., example="healthy")
-    database: str = Field(..., example="connected")
-    service: str = Field(..., example="Hospital Bed Capacity Forecasting API")
-    version: str = Field(..., example="1.0.0")
+    status: str = Field(..., json_schema_extra={"example": "healthy"})
+    database: str = Field(..., json_schema_extra={"example": "connected"})
+    service: str = Field(..., json_schema_extra={"example": "Hospital Bed Capacity Forecasting API"})
+    version: str = Field(..., json_schema_extra={"example": "1.0.0"})
 
 
 @router.get(

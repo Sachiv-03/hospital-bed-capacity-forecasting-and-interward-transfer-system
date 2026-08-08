@@ -2,8 +2,11 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { DashboardPage } from '../pages/DashboardPage';
+import { GenericPage } from '../pages/GenericPage';
 import { WardsPage } from '../pages/wards/WardsPage';
 import { WardDetailPage } from '../pages/wards/WardDetailPage';
+
+
 import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
 import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage';
