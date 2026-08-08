@@ -2,7 +2,8 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { DashboardPage } from '../pages/DashboardPage';
-import { GenericPage } from '../pages/GenericPage';
+import { WardsPage } from '../pages/wards/WardsPage';
+import { WardDetailPage } from '../pages/wards/WardDetailPage';
 import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
 import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage';
@@ -60,15 +61,21 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="wards"
           element={
-            <RoleGuard allowedRoles={['admin', 'doctor', 'nurse']}>
-              <GenericPage
-                title="Ward Capacity Monitoring"
-                description="Departmental ward layouts, ICU occupancy ratios, and staffing thresholds."
-                moduleName="Ward Monitoring"
-              />
+            <RoleGuard allowedRoles={['admin', 'doctor', 'nurse', 'receptionist']}>
+              <WardsPage />
             </RoleGuard>
           }
         />
+
+        <Route
+          path="wards/:id"
+          element={
+            <RoleGuard allowedRoles={['admin', 'doctor', 'nurse', 'receptionist']}>
+              <WardDetailPage />
+            </RoleGuard>
+          }
+        />
+
         
         <Route
           path="forecast"

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchHealthStatus } from '../services/api';
-import { HealthStatus } from '../types';
+import { getWardStatistics } from '../services/wardService';
+import { HealthStatus, WardStatistics } from '../types';
 import { useAuth } from '../context/AuthContext';
 import {
   Activity,
@@ -15,22 +16,27 @@ import {
   Cpu,
   Layers,
   ShieldCheck,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [wardStats, setWardStats] = useState<WardStatistics | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [showArchitecture, setShowArchitecture] = useState<boolean>(false);
 
   useEffect(() => {
-    fetchHealthStatus()
-      .then((data) => {
-        setHealth(data);
+    Promise.all([fetchHealthStatus(), getWardStatistics()])
+      .then(([healthData, statsData]) => {
+        setHealth(healthData);
+        setWardStats(statsData);
         setLoading(false);
       })
       .catch((err) => {
-        console.error('Failed to fetch backend health status:', err);
+        console.error('Failed to fetch dashboard telemetry:', err);
         setError('FastAPI Server unreachable on localhost:8000');
         setLoading(false);
       });
@@ -72,21 +78,23 @@ export const DashboardPage: React.FC = () => {
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {/* Total Beds Card */}
+        {/* Total Ward Capacity Card */}
         <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Total Hospital Beds
+              Total Capacity
             </span>
             <div className="w-10 h-10 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 flex items-center justify-center">
               <BedDouble className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-900 dark:text-white">--</span>
-            <span className="text-xs text-slate-400">Phase 3 Module</span>
+            <span className="text-3xl font-black text-slate-900 dark:text-white">
+              {wardStats?.total_capacity ?? 0}
+            </span>
+            <span className="text-xs text-slate-400">Total Ward Beds</span>
           </div>
-          <p className="text-xs text-slate-500 mt-2">Configured in PostgreSQL schema</p>
+          <p className="text-xs text-slate-500 mt-2">Configured in Neon PostgreSQL</p>
         </div>
 
         {/* Active Wards Card */}
@@ -100,11 +108,16 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-900 dark:text-white">--</span>
-            <span className="text-xs text-slate-400">ICU / ER / General</span>
+            <span className="text-3xl font-black text-slate-900 dark:text-white">
+              {wardStats?.active_wards ?? 0}
+            </span>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+              of {wardStats?.total_wards ?? 0} Wards
+            </span>
           </div>
-          <p className="text-xs text-slate-500 mt-2">Inter-ward routing topology</p>
+          <p className="text-xs text-slate-500 mt-2">Live Ward Topology</p>
         </div>
+
 
         {/* Forecast Occupancy Card */}
         <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-shadow">
@@ -141,47 +154,75 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Architecture Verification Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-sky-900 via-indigo-900 to-slate-900 text-white shadow-xl relative overflow-hidden">
-        <div className="relative z-10 space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 border border-sky-400/30 text-sky-300 text-xs font-bold uppercase tracking-wider">
-            <Layers className="w-3.5 h-3.5" /> Phase 1 Foundation & Phase 2 JWT Authentication Active
-          </div>
-
-          <h2 className="text-xl sm:text-2xl font-extrabold">
-            Enterprise Healthcare Platform & PostgreSQL Database Ready
-          </h2>
-
-          <p className="text-sm text-slate-300 max-w-3xl leading-relaxed">
-            The database connection management engine, SQLAlchemy User ORM models, bcrypt password security, JWT token auto-refresh interceptors, role-based route guards, and health diagnostics are fully configured.
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-            <div className="p-3.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-3">
-              <Server className="w-5 h-5 text-sky-400" />
-              <div>
-                <p className="text-xs font-bold">FastAPI Backend</p>
-                <p className="text-[11px] text-slate-300">Swagger UI at /docs</p>
-              </div>
+      {/* Optional Architecture Verification Toggle */}
+      <div className="pt-2">
+        <button
+          onClick={() => setShowArchitecture((prev) => !prev)}
+          type="button"
+          className="w-full flex items-center justify-between p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:border-sky-500/50 transition-all text-left group cursor-pointer"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold">
+              <Layers className="w-5 h-5" />
             </div>
-
-            <div className="p-3.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-3">
-              <Database className="w-5 h-5 text-emerald-400" />
-              <div>
-                <p className="text-xs font-bold">PostgreSQL Database</p>
-                <p className="text-[11px] text-slate-300">Status: {health?.database || 'connected'}</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-3">
-              <ShieldCheck className="w-5 h-5 text-indigo-400" />
-              <div>
-                <p className="text-xs font-bold">JWT & RBAC Security</p>
-                <p className="text-[11px] text-slate-300">Active User: {user?.role}</p>
-              </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
+                System Architecture & Technical Specifications
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Click to {showArchitecture ? 'hide' : 'view'} database engine status, JWT security specs, and backend details
+              </p>
             </div>
           </div>
-        </div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950 px-3 py-1.5 rounded-lg border border-sky-200 dark:border-sky-800">
+            <span>{showArchitecture ? 'Hide Details' : 'Show Details'}</span>
+            {showArchitecture ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </div>
+        </button>
+
+        {showArchitecture && (
+          <div className="mt-4 p-6 rounded-2xl bg-gradient-to-r from-sky-900 via-indigo-900 to-slate-900 text-white shadow-xl relative overflow-hidden animate-fadeIn">
+            <div className="relative z-10 space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 border border-sky-400/30 text-sky-300 text-xs font-bold uppercase tracking-wider">
+                <Layers className="w-3.5 h-3.5" /> Phase 1 Foundation & Phase 2 JWT Authentication Active
+              </div>
+
+              <h2 className="text-xl sm:text-2xl font-extrabold">
+                Enterprise Healthcare Platform & PostgreSQL Database Ready
+              </h2>
+
+              <p className="text-sm text-slate-300 max-w-3xl leading-relaxed">
+                The database connection management engine, SQLAlchemy User ORM models, bcrypt password security, JWT token auto-refresh interceptors, role-based route guards, and health diagnostics are fully configured.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                <div className="p-3.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-3">
+                  <Server className="w-5 h-5 text-sky-400" />
+                  <div>
+                    <p className="text-xs font-bold">FastAPI Backend</p>
+                    <p className="text-[11px] text-slate-300">Swagger UI at /docs</p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-3">
+                  <Database className="w-5 h-5 text-emerald-400" />
+                  <div>
+                    <p className="text-xs font-bold">PostgreSQL Database</p>
+                    <p className="text-[11px] text-slate-300">Status: {health?.database || 'connected'}</p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-3">
+                  <ShieldCheck className="w-5 h-5 text-indigo-400" />
+                  <div>
+                    <p className="text-xs font-bold">JWT & RBAC Security</p>
+                    <p className="text-[11px] text-slate-300">Active User: {user?.role}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

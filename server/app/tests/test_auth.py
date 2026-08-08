@@ -2,16 +2,32 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.database.session import Base, get_db
 from app.main import app
 
-# In-memory SQLite for isolated test suite
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+# In-memory SQLite with StaticPool for thread-safe test isolation
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base.metadata.create_all(bind=engine)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def clean_database():
+    db = TestingSessionLocal()
+    try:
+        for table in reversed(Base.metadata.sorted_tables):
+            db.execute(table.delete())
+        db.commit()
+    finally:
+        db.close()
 
 
 def override_get_db():
@@ -45,6 +61,17 @@ def test_user_registration():
 
 
 def test_duplicate_user_registration():
+    # Register first user
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Dr. Alex Rivera",
+            "email": "alex.rivera@hospital.com",
+            "password": "SecurePassword123!",
+            "role": "doctor",
+        },
+    )
+    # Attempt duplicate
     response = client.post(
         "/api/v1/auth/register",
         json={
@@ -59,6 +86,16 @@ def test_duplicate_user_registration():
 
 
 def test_user_login_success():
+    # Register user first
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Dr. Alex Rivera",
+            "email": "alex.rivera@hospital.com",
+            "password": "SecurePassword123!",
+            "role": "doctor",
+        },
+    )
     response = client.post(
         "/api/v1/auth/login",
         json={
@@ -74,6 +111,16 @@ def test_user_login_success():
 
 
 def test_user_login_invalid_password():
+    # Register user first
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Dr. Alex Rivera",
+            "email": "alex.rivera@hospital.com",
+            "password": "SecurePassword123!",
+            "role": "doctor",
+        },
+    )
     response = client.post(
         "/api/v1/auth/login",
         json={
@@ -85,6 +132,16 @@ def test_user_login_invalid_password():
 
 
 def test_get_current_user_profile():
+    # Register user
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Dr. Alex Rivera",
+            "email": "alex.rivera@hospital.com",
+            "password": "SecurePassword123!",
+            "role": "doctor",
+        },
+    )
     # Login to get token
     login_resp = client.post(
         "/api/v1/auth/login",
@@ -107,6 +164,16 @@ def test_get_current_user_profile():
 
 
 def test_token_refresh():
+    # Register user
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Dr. Alex Rivera",
+            "email": "alex.rivera@hospital.com",
+            "password": "SecurePassword123!",
+            "role": "doctor",
+        },
+    )
     login_resp = client.post(
         "/api/v1/auth/login",
         json={
