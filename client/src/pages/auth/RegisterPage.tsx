@@ -119,8 +119,9 @@ export const RegisterPage: React.FC = () => {
               >
                 <option value="doctor">Doctor (Clinical Lead)</option>
                 <option value="nurse">Nurse (Ward Operations)</option>
-                <option value="admin">Administrator (Full Access)</option>
+                <option value="admin">Administrator (Hospital Admin)</option>
                 <option value="receptionist">Receptionist (Admissions Desk)</option>
+                <option value="super_admin">Super Admin (System-Wide Management)</option>
               </select>
             </div>
           </div>

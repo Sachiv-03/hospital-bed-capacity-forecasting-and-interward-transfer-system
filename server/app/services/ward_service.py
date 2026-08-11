@@ -3,14 +3,42 @@ from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
+from app.models.hospital import Hospital
 from app.models.ward import Ward, WardStatus, WardType
 from app.schemas.ward import WardCreate, WardUpdate, WardStatusEnum, WardTypeEnum
 
 
 class WardService:
     @staticmethod
+    def format_ward_response(db: Session, ward: Ward) -> Dict[str, Any]:
+        """
+        Formats ward ORM object into response dictionary with hospital_name attached.
+        """
+        hospital_name = None
+        if ward.hospital_id:
+            h = db.query(Hospital).filter(Hospital.id == ward.hospital_id).first()
+            if h:
+                hospital_name = h.name
+
+        return {
+            "id": ward.id,
+            "hospital_id": ward.hospital_id,
+            "hospital_name": hospital_name,
+            "name": ward.name,
+            "ward_type": ward.ward_type,
+            "department": ward.department,
+            "floor": ward.floor,
+            "capacity": ward.capacity,
+            "description": ward.description,
+            "status": ward.status,
+            "created_at": ward.created_at,
+            "updated_at": ward.updated_at,
+        }
+
+    @staticmethod
     def get_wards(
         db: Session,
+        hospital_id: Optional[int] = None,
         page: int = 1,
         limit: int = 10,
         search: Optional[str] = None,
@@ -19,9 +47,12 @@ class WardService:
         status_filter: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Fetch paginated list of wards with optional search and filtering.
+        Fetch paginated list of wards scoped by hospital_id with optional search and filtering.
         """
         query = db.query(Ward)
+
+        if hospital_id is not None:
+            query = query.filter(Ward.hospital_id == hospital_id)
 
         if search:
             search_pattern = f"%{search.strip()}%"
@@ -46,7 +77,9 @@ class WardService:
         pages = max(1, (total + limit - 1) // limit) if total > 0 else 1
         offset = (page - 1) * limit
 
-        items = query.order_by(Ward.id.desc()).offset(offset).limit(limit).all()
+        wards = query.order_by(Ward.id.desc()).offset(offset).limit(limit).all()
+
+        items = [WardService.format_ward_response(db, w) for w in wards]
 
         return {
             "items": items,
@@ -57,37 +90,50 @@ class WardService:
         }
 
     @staticmethod
-    def get_ward_by_id(db: Session, ward_id: int) -> Ward:
+    def get_ward_by_id(db: Session, ward_id: int, hospital_id: Optional[int] = None) -> Dict[str, Any]:
         """
-        Retrieve single ward by ID or raise 404 exception.
+        Retrieve single ward by ID and verify hospital_id access restriction.
         """
-        ward = db.query(Ward).filter(Ward.id == ward_id).first()
+        query = db.query(Ward).filter(Ward.id == ward_id)
+        if hospital_id is not None:
+            query = query.filter(Ward.hospital_id == hospital_id)
+
+        ward = query.first()
         if not ward:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Ward with ID {ward_id} not found."
             )
-        return ward
+        return WardService.format_ward_response(db, ward)
 
     @staticmethod
-    def create_ward(db: Session, ward_in: WardCreate) -> Ward:
+    def create_ward(db: Session, ward_in: WardCreate, target_hospital_id: int) -> Dict[str, Any]:
         """
-        Create new ward record after checking for duplicate names in the same department.
+        Create new ward record within the target hospital. Enforces per-hospital ward name uniqueness.
         """
-        # Check duplicate ward name in same department
+        # Validate target hospital exists
+        hospital = db.query(Hospital).filter(Hospital.id == target_hospital_id).first()
+        if not hospital:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Hospital with ID {target_hospital_id} does not exist."
+            )
+
+        # Check duplicate ward name within the SAME hospital
         existing_ward = db.query(Ward).filter(
+            Ward.hospital_id == target_hospital_id,
             func.lower(Ward.name) == ward_in.name.strip().lower(),
-            func.lower(Ward.department) == ward_in.department.strip().lower(),
         ).first()
 
         if existing_ward:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"A ward named '{ward_in.name}' already exists in department '{ward_in.department}'."
+                detail=f"A ward named '{ward_in.name}' already exists in hospital '{hospital.name}'."
             )
 
         floor_str = str(ward_in.floor)
         ward = Ward(
+            hospital_id=target_hospital_id,
             name=ward_in.name.strip(),
             ward_type=ward_in.ward_type.value if isinstance(ward_in.ward_type, WardTypeEnum) else str(ward_in.ward_type),
             department=ward_in.department.strip(),
@@ -100,31 +146,37 @@ class WardService:
         db.add(ward)
         db.commit()
         db.refresh(ward)
-        return ward
+        return WardService.format_ward_response(db, ward)
 
     @staticmethod
-    def update_ward(db: Session, ward_id: int, ward_in: WardUpdate) -> Ward:
+    def update_ward(db: Session, ward_id: int, ward_in: WardUpdate, hospital_id: Optional[int] = None) -> Dict[str, Any]:
         """
-        Update existing ward details.
+        Update existing ward details while ensuring tenant isolation.
         """
-        ward = WardService.get_ward_by_id(db, ward_id)
+        query = db.query(Ward).filter(Ward.id == ward_id)
+        if hospital_id is not None:
+            query = query.filter(Ward.hospital_id == hospital_id)
+
+        ward = query.first()
+        if not ward:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Ward with ID {ward_id} not found."
+            )
 
         update_data = ward_in.model_dump(exclude_unset=True)
 
-        # Check duplicate name conflict if name or department updated
         new_name = update_data.get("name", ward.name)
-        new_dept = update_data.get("department", ward.department)
-
-        if (new_name != ward.name or new_dept != ward.department):
-            existing_conflict = db.query(Ward).filter(
+        if new_name != ward.name:
+            conflict = db.query(Ward).filter(
                 Ward.id != ward_id,
+                Ward.hospital_id == ward.hospital_id,
                 func.lower(Ward.name) == new_name.strip().lower(),
-                func.lower(Ward.department) == new_dept.strip().lower(),
             ).first()
-            if existing_conflict:
+            if conflict:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Another ward named '{new_name}' already exists in department '{new_dept}'."
+                    detail=f"Another ward named '{new_name}' already exists in this hospital."
                 )
 
         for field, value in update_data.items():
@@ -141,33 +193,50 @@ class WardService:
 
         db.commit()
         db.refresh(ward)
-        return ward
+        return WardService.format_ward_response(db, ward)
 
     @staticmethod
-    def deactivate_ward(db: Session, ward_id: int) -> Ward:
+    def deactivate_ward(db: Session, ward_id: int, hospital_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Safely deactivate ward by setting status = INACTIVE (soft delete).
         """
-        ward = WardService.get_ward_by_id(db, ward_id)
+        query = db.query(Ward).filter(Ward.id == ward_id)
+        if hospital_id is not None:
+            query = query.filter(Ward.hospital_id == hospital_id)
+
+        ward = query.first()
+        if not ward:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Ward with ID {ward_id} not found."
+            )
+
         ward.status = WardStatus.INACTIVE.value
         db.commit()
         db.refresh(ward)
-        return ward
+        return WardService.format_ward_response(db, ward)
 
     @staticmethod
-    def get_ward_statistics(db: Session) -> Dict[str, Any]:
+    def get_ward_statistics(db: Session, hospital_id: Optional[int] = None) -> Dict[str, Any]:
         """
-        Calculate database aggregate statistics for hospital wards.
+        Calculate database aggregate statistics for hospital wards scoped to hospital_id.
         """
-        total_wards = db.query(Ward).count()
-        active_wards = db.query(Ward).filter(Ward.status == WardStatus.ACTIVE.value).count()
-        inactive_wards = db.query(Ward).filter(Ward.status == WardStatus.INACTIVE.value).count()
+        query = db.query(Ward)
+        if hospital_id is not None:
+            query = query.filter(Ward.hospital_id == hospital_id)
+
+        total_wards = query.count()
+        active_wards = query.filter(Ward.status == WardStatus.ACTIVE.value).count()
+        inactive_wards = query.filter(Ward.status == WardStatus.INACTIVE.value).count()
         
         # Calculate total capacity across active wards
-        sum_capacity = db.query(func.sum(Ward.capacity)).filter(Ward.status == WardStatus.ACTIVE.value).scalar()
+        cap_query = db.query(func.sum(Ward.capacity)).filter(Ward.status == WardStatus.ACTIVE.value)
+        if hospital_id is not None:
+            cap_query = cap_query.filter(Ward.hospital_id == hospital_id)
+
+        sum_capacity = cap_query.scalar()
         total_capacity = int(sum_capacity) if sum_capacity else 0
 
-        # Phase 3 temporary placeholders until Phase 4 Bed Management is implemented
         total_beds = 0
         occupied_beds = 0
         available_beds = total_capacity
@@ -185,17 +254,17 @@ class WardService:
         }
 
     @staticmethod
-    def get_ward_occupancy(db: Session, ward_id: int) -> Dict[str, Any]:
+    def get_ward_occupancy(db: Session, ward_id: int, hospital_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Get occupancy metrics for specific ward.
         """
-        ward = WardService.get_ward_by_id(db, ward_id)
+        ward_data = WardService.get_ward_by_id(db, ward_id, hospital_id=hospital_id)
         return {
-            "ward_id": ward.id,
-            "ward_name": ward.name,
-            "capacity": ward.capacity,
+            "ward_id": ward_data["id"],
+            "ward_name": ward_data["name"],
+            "capacity": ward_data["capacity"],
             "occupied_beds": 0,
-            "available_beds": ward.capacity,
+            "available_beds": ward_data["capacity"],
             "occupancy_rate": 0.0,
             "message": "Detailed bed occupancy tracking will be enabled in Phase 4 Bed Management.",
         }

@@ -1,11 +1,12 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { DashboardPage } from '../pages/DashboardPage';
 import { GenericPage } from '../pages/GenericPage';
 import { WardsPage } from '../pages/wards/WardsPage';
 import { WardDetailPage } from '../pages/wards/WardDetailPage';
-
+import { HospitalsPage } from '../pages/hospitals/HospitalsPage';
+import { HospitalDetailPage } from '../pages/hospitals/HospitalDetailPage';
 
 import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
@@ -35,10 +36,28 @@ export const AppRoutes: React.FC = () => {
       >
         <Route index element={<DashboardPage />} />
         
+        {/* Super Admin Hospitals Route */}
+        <Route
+          path="hospitals"
+          element={
+            <RoleGuard allowedRoles={['super_admin']}>
+              <HospitalsPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="hospitals/:id"
+          element={
+            <RoleGuard allowedRoles={['super_admin']}>
+              <HospitalDetailPage />
+            </RoleGuard>
+          }
+        />
+
         <Route
           path="patients"
           element={
-            <RoleGuard allowedRoles={['admin', 'doctor', 'nurse', 'receptionist']}>
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse', 'receptionist']}>
               <GenericPage
                 title="Patients Directory"
                 description="Patient admission status, demographic metadata, and bed assignment registry."
@@ -51,7 +70,7 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="beds"
           element={
-            <RoleGuard allowedRoles={['admin', 'doctor', 'nurse']}>
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse']}>
               <GenericPage
                 title="Hospital Bed Management"
                 description="Real-time bed availability tracking, maintenance statuses, and telemetry."
@@ -64,7 +83,7 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="wards"
           element={
-            <RoleGuard allowedRoles={['admin', 'doctor', 'nurse', 'receptionist']}>
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse', 'receptionist']}>
               <WardsPage />
             </RoleGuard>
           }
@@ -73,17 +92,16 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="wards/:id"
           element={
-            <RoleGuard allowedRoles={['admin', 'doctor', 'nurse', 'receptionist']}>
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse', 'receptionist']}>
               <WardDetailPage />
             </RoleGuard>
           }
         />
 
-        
         <Route
           path="forecast"
           element={
-            <RoleGuard allowedRoles={['admin', 'doctor']}>
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor']}>
               <GenericPage
                 title="AI Bed Capacity Forecast"
                 description="Predictive Machine Learning models for 24h, 48h, and 7-day occupancy projections."
@@ -96,7 +114,7 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="transfers"
           element={
-            <RoleGuard allowedRoles={['admin', 'doctor', 'nurse']}>
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse']}>
               <GenericPage
                 title="Inter-Ward Transfer System"
                 description="Intelligent transfer request routing, priority prioritization, and bed matching."
@@ -109,7 +127,7 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="analytics"
           element={
-            <RoleGuard allowedRoles={['admin', 'doctor']}>
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor']}>
               <GenericPage
                 title="Operational Analytics"
                 description="Hospital length-of-stay (LOS) distributions, bottleneck indicators, and throughput metrics."
@@ -122,7 +140,7 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="reports"
           element={
-            <RoleGuard allowedRoles={['admin', 'doctor']}>
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor']}>
               <GenericPage
                 title="Capacity & Compliance Reports"
                 description="Automated PDF/CSV exports for administrative reporting and regulatory compliance."
@@ -135,7 +153,7 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="settings"
           element={
-            <RoleGuard allowedRoles={['admin']}>
+            <RoleGuard allowedRoles={['super_admin', 'admin']}>
               <GenericPage
                 title="System Configuration"
                 description="Database pooling options, API parameters, notification webhooks, and threshold settings."

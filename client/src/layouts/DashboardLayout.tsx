@@ -20,6 +20,7 @@ import {
   Menu,
   X,
   ShieldCheck,
+  Building,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 
@@ -100,8 +101,11 @@ export const DashboardLayout: React.FC = () => {
     navigate('/login');
   };
 
+  const isSuperAdmin = user?.role === 'super_admin';
+
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    ...(isSuperAdmin ? [{ name: 'Hospitals', path: '/hospitals', icon: Building, badge: 'System' }] : []),
     { name: 'Patients', path: '/patients', icon: Users },
     { name: 'Beds', path: '/beds', icon: BedDouble },
     { name: 'Wards', path: '/wards', icon: Building2 },
@@ -122,6 +126,9 @@ export const DashboardLayout: React.FC = () => {
       .substring(0, 2)
       .toUpperCase();
   };
+
+  const activeHospitalName =
+    user?.hospital_name || (isSuperAdmin ? 'All Hospitals (Super Admin)' : 'Apollo Medical Center');
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
@@ -150,6 +157,12 @@ export const DashboardLayout: React.FC = () => {
               </span>
             </div>
           </Link>
+
+          {/* Active Hospital Badge in Header */}
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300">
+            <Building className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+            <span className="text-xs font-semibold">{activeHospitalName}</span>
+          </div>
         </div>
 
         {/* Center: Search Bar */}
@@ -216,8 +229,8 @@ export const DashboardLayout: React.FC = () => {
         >
           {/* Navigation Link List */}
           <div className="p-4 space-y-1.5 overflow-y-auto">
-            <div className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Main Operations
+            <div className="px-3 pb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <span>Main Operations</span>
             </div>
             {navItems.map((item) => (
               <SidebarItem
@@ -225,6 +238,7 @@ export const DashboardLayout: React.FC = () => {
                 name={item.name}
                 path={item.path}
                 icon={item.icon}
+                badge={item.badge}
                 active={location.pathname === item.path}
               />
             ))}
@@ -235,8 +249,10 @@ export const DashboardLayout: React.FC = () => {
             <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-3">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
               <div>
-                <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">JWT Auth Session Active</p>
-                <p className="text-[10px] text-emerald-600 dark:text-emerald-400">Authenticated as {user?.role}</p>
+                <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Tenant Isolated Session</p>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                  {activeHospitalName}
+                </p>
               </div>
             </div>
 
@@ -259,12 +275,12 @@ export const DashboardLayout: React.FC = () => {
           {/* Footer */}
           <footer className="mt-12 pt-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2 max-w-7xl mx-auto w-full">
             <div>
-              © 2026 AI-Powered Hospital Bed Capacity & Transfer System. Enterprise Phase 2 Active.
+              © 2026 AI-Powered Hospital Bed Capacity & Transfer System. Multi-Hospital Phase 3 Active.
             </div>
             <div className="flex items-center gap-4">
-              <span>Platform Version 1.0.0</span>
+              <span>Multi-Tenant Architecture</span>
               <span>•</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">RBAC Security Active</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">Tenant Data Isolation Enforced</span>
             </div>
           </footer>
         </main>

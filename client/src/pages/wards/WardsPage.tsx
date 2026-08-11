@@ -8,6 +8,7 @@ import {
   WardStatus,
   WardType,
   WardStatistics,
+  Hospital,
 } from '../../types';
 import {
   getWards,
@@ -16,6 +17,7 @@ import {
   updateWard,
   deactivateWard,
 } from '../../services/wardService';
+import { hospitalService } from '../../services/hospitalService';
 import { WardFormModal } from '../../components/wards/WardFormModal';
 import { DeactivateWardModal } from '../../components/wards/DeactivateWardModal';
 import {
@@ -31,8 +33,8 @@ import {
   AlertCircle,
   RefreshCw,
   Layers,
+  Building,
 } from 'lucide-react';
-
 
 const WARD_TYPES: { label: string; value: string }[] = [
   { label: 'All Types', value: '' },
@@ -55,11 +57,13 @@ const WARD_STATUSES: { label: string; value: string }[] = [
 export const WardsPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const isSuperAdmin = user?.role === 'super_admin';
 
   // Data states
   const [wards, setWards] = useState<Ward[]>([]);
   const [statistics, setStatistics] = useState<WardStatistics | null>(null);
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [totalItems, setTotalItems] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [page, setPage] = useState<number>(1);
@@ -71,6 +75,7 @@ export const WardsPage: React.FC = () => {
   const [selectedType, setSelectedType] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [selectedDept, setSelectedDept] = useState<string>('');
+  const [selectedHospitalId, setSelectedHospitalId] = useState<number | undefined>(undefined);
 
   // UI Loading & Error states
   const [loadingList, setLoadingList] = useState<boolean>(true);
@@ -87,11 +92,24 @@ export const WardsPage: React.FC = () => {
   const [deactivatingWard, setDeactivatingWard] = useState<Ward | null>(null);
   const [isDeactivating, setIsDeactivating] = useState<boolean>(false);
 
+  const activeHospitalName =
+    user?.hospital_name || (isSuperAdmin ? 'All Hospitals' : 'Apollo Medical Center');
+
+  // Load Super Admin hospital options
+  useEffect(() => {
+    if (isSuperAdmin) {
+      hospitalService
+        .getHospitals({ limit: 100 })
+        .then((res) => setHospitals(res.items))
+        .catch((err) => console.error('Failed to load hospitals list:', err));
+    }
+  }, [isSuperAdmin]);
+
   // Debounce search input
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchInput);
-      setPage(1); // Reset to page 1 on new search
+      setPage(1);
     }, 400);
 
     return () => clearTimeout(handler);
@@ -109,14 +127,14 @@ export const WardsPage: React.FC = () => {
   const loadStatistics = useCallback(async () => {
     setLoadingStats(true);
     try {
-      const stats = await getWardStatistics();
+      const stats = await getWardStatistics(selectedHospitalId);
       setStatistics(stats);
     } catch (err: unknown) {
       console.error('Failed to load ward statistics:', err);
     } finally {
       setLoadingStats(false);
     }
-  }, []);
+  }, [selectedHospitalId]);
 
   // Load Ward List
   const loadWards = useCallback(async () => {
@@ -130,18 +148,19 @@ export const WardsPage: React.FC = () => {
         ward_type: selectedType || undefined,
         status: selectedStatus || undefined,
         department: selectedDept || undefined,
+        hospital_id: selectedHospitalId,
       });
       setWards(data.items);
       setTotalItems(data.total);
       setTotalPages(data.pages);
     } catch (err: unknown) {
       console.error('Failed to fetch wards list:', err);
-      const errorMsg = (err as AxiosError<{ detail?: string }>).response?.data?.detail || 'Failed to load hospital wards. Please check backend connection.';
+      const errorMsg = (err as AxiosError<{ detail?: string }>).response?.data?.detail || 'Failed to load hospital wards.';
       setErrorList(errorMsg);
     } finally {
       setLoadingList(false);
     }
-  }, [page, limit, debouncedSearch, selectedType, selectedStatus, selectedDept]);
+  }, [page, limit, debouncedSearch, selectedType, selectedStatus, selectedDept, selectedHospitalId]);
 
   useEffect(() => {
     loadStatistics();
@@ -168,7 +187,7 @@ export const WardsPage: React.FC = () => {
       loadWards();
       loadStatistics();
     } catch (err: unknown) {
-      const errorMsg = (err as AxiosError<{ detail?: string }>).response?.data?.detail || 'Failed to save ward information. Please try again.';
+      const errorMsg = (err as AxiosError<{ detail?: string }>).response?.data?.detail || 'Failed to save ward information.';
       setModalApiError(errorMsg);
     } finally {
       setIsFormSubmitting(false);
@@ -205,10 +224,11 @@ export const WardsPage: React.FC = () => {
     setSelectedType('');
     setSelectedStatus('');
     setSelectedDept('');
+    setSelectedHospitalId(undefined);
     setPage(1);
   };
 
-  // Badge Color Helper
+  // Badge Color Helpers
   const getStatusBadge = (status: WardStatus) => {
     if (status === 'ACTIVE') {
       return (
@@ -276,12 +296,18 @@ export const WardsPage: React.FC = () => {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
         <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+              <Building className="w-3.5 h-3.5" />
+              {activeHospitalName}
+            </span>
+          </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
             <Building2 className="w-8 h-8 text-sky-600 dark:text-sky-400" />
             Ward Management
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Manage hospital wards, departments, capacity, and bed availability topology.
+            Manage hospital wards, capacity, and availability for {activeHospitalName}.
           </p>
         </div>
 
@@ -324,7 +350,7 @@ export const WardsPage: React.FC = () => {
                 {statistics?.total_wards ?? 0}
               </span>
             )}
-            <span className="text-xs text-slate-400">Hospital Departments</span>
+            <span className="text-xs text-slate-400">Hospital Wards</span>
           </div>
         </div>
 
@@ -390,7 +416,7 @@ export const WardsPage: React.FC = () => {
                 {statistics?.inactive_wards ?? 0}
               </span>
             )}
-            <span className="text-xs text-slate-400">Maintenance / Offline</span>
+            <span className="text-xs text-slate-400">Offline / Maintenance</span>
           </div>
         </div>
       </div>
@@ -403,17 +429,40 @@ export const WardsPage: React.FC = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Search wards or departments..."
+              placeholder="Search ward name or department..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-all placeholder:text-slate-400"
             />
           </div>
 
+          {/* Super Admin Hospital Selector Filter */}
+          {isSuperAdmin && (
+            <div>
+              <select
+                value={selectedHospitalId || ''}
+                onChange={(e) => {
+                  const val = e.target.value ? parseInt(e.target.value) : undefined;
+                  setSelectedHospitalId(val);
+                  setPage(1);
+                }}
+                className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-all font-semibold"
+              >
+                <option value="">All Hospitals (Super Admin)</option>
+                {hospitals.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name} ({h.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Ward Type Select */}
           <div>
             <select
               value={selectedType}
+              defaultValue=""
               onChange={(e) => {
                 setSelectedType(e.target.value);
                 setPage(1);
@@ -448,7 +497,7 @@ export const WardsPage: React.FC = () => {
 
           {/* Clear Filters Button */}
           <div className="flex items-center gap-2">
-            {(searchInput || selectedType || selectedStatus || selectedDept) && (
+            {(searchInput || selectedType || selectedStatus || selectedHospitalId) && (
               <button
                 onClick={clearFilters}
                 className="w-full py-2 px-3 text-xs font-bold uppercase tracking-wider text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors flex items-center justify-center gap-1.5"
@@ -486,7 +535,7 @@ export const WardsPage: React.FC = () => {
             <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
               <Building2 className="w-8 h-8" />
             </div>
-            {debouncedSearch || selectedType || selectedStatus ? (
+            {debouncedSearch || selectedType || selectedStatus || selectedHospitalId ? (
               <div>
                 <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">No wards match your search</h3>
                 <p className="text-xs text-slate-500 mt-1">Try adjusting your filters or search keywords.</p>
@@ -525,6 +574,7 @@ export const WardsPage: React.FC = () => {
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   <th className="py-3.5 px-4 sm:px-6">Ward Name</th>
+                  {isSuperAdmin && <th className="py-3.5 px-4">Hospital</th>}
                   <th className="py-3.5 px-4">Ward Type</th>
                   <th className="py-3.5 px-4">Department</th>
                   <th className="py-3.5 px-4">Floor</th>
@@ -550,6 +600,15 @@ export const WardsPage: React.FC = () => {
                         </div>
                       )}
                     </td>
+
+                    {/* Hospital Column for Super Admin */}
+                    {isSuperAdmin && (
+                      <td className="py-4 px-4 font-medium text-slate-600 dark:text-slate-400 text-xs">
+                        <span className="px-2 py-0.5 rounded bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 font-semibold border border-sky-200 dark:border-sky-800">
+                          {ward.hospital_name || `Hospital #${ward.hospital_id}`}
+                        </span>
+                      </td>
+                    )}
 
                     {/* Ward Type */}
                     <td className="py-4 px-4">{getTypeBadge(ward.ward_type)}</td>
@@ -585,7 +644,7 @@ export const WardsPage: React.FC = () => {
                           <Eye className="w-4 h-4" />
                         </button>
 
-                        {/* Edit Ward (Admin Only) */}
+                        {/* Edit Ward (Admin / Super Admin) */}
                         {isAdmin && (
                           <button
                             onClick={() => {
@@ -600,7 +659,7 @@ export const WardsPage: React.FC = () => {
                           </button>
                         )}
 
-                        {/* Deactivate Ward (Admin Only) */}
+                        {/* Deactivate Ward (Admin / Super Admin) */}
                         {isAdmin && ward.status === 'ACTIVE' && (
                           <button
                             onClick={() => setDeactivatingWard(ward)}

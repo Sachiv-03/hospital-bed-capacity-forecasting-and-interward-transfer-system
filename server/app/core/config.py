@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # Phase 6 — Hospital Simulator (development only)
+    SIMULATOR_ENABLED: bool = False
+    SIMULATOR_INTERVAL_SECONDS: int = 10
+    SIMULATOR_HOSPITAL_ID: int = 1
+
     # CORS
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",

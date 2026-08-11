@@ -37,7 +37,7 @@ class WardBase(BaseModel):
 
 
 class WardCreate(WardBase):
-    pass
+    hospital_id: Optional[int] = Field(None, description="Optional target hospital_id (SUPER_ADMIN only)")
 
 
 class WardUpdate(BaseModel):
@@ -61,6 +61,8 @@ class WardUpdate(BaseModel):
 
 class WardResponse(WardBase):
     id: int
+    hospital_id: int
+    hospital_name: Optional[str] = None
     floor: str
     status: WardStatusEnum
     created_at: datetime

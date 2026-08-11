@@ -15,6 +15,7 @@ export interface GetWardsQueryParams {
   ward_type?: string;
   department?: string;
   status?: string;
+  hospital_id?: number;
 }
 
 export const getWards = async (params: GetWardsQueryParams = {}): Promise<WardListResponse> => {
@@ -42,8 +43,10 @@ export const deactivateWard = async (id: number): Promise<Ward> => {
   return response.data;
 };
 
-export const getWardStatistics = async (): Promise<WardStatistics> => {
-  const response = await apiClient.get<WardStatistics>('/wards/statistics');
+export const getWardStatistics = async (hospital_id?: number): Promise<WardStatistics> => {
+  const response = await apiClient.get<WardStatistics>('/wards/statistics', {
+    params: hospital_id ? { hospital_id } : {},
+  });
   return response.data;
 };
 

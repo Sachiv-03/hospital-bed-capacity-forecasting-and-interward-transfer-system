@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database.session import Base, get_db
+from app.models.hospital import Hospital, HospitalStatus
 from app.main import app
 
 # In-memory SQLite with StaticPool for thread-safe test isolation
@@ -21,10 +22,16 @@ Base.metadata.create_all(bind=engine)
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_test_database():
+    app.dependency_overrides[get_db] = override_get_db
     db = TestingSessionLocal()
     try:
         for table in reversed(Base.metadata.sorted_tables):
             db.execute(table.delete())
+        db.commit()
+
+        # Seed default initial hospital facility for ward tests
+        h1 = Hospital(name="Apollo Medical Center", code="H001", city="Metropolis", status=HospitalStatus.ACTIVE.value)
+        db.add(h1)
         db.commit()
     finally:
         db.close()
@@ -38,8 +45,6 @@ def override_get_db():
     finally:
         db.close()
 
-
-app.dependency_overrides[get_db] = override_get_db
 
 client = TestClient(app)
 

@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_roles
@@ -18,9 +18,15 @@ from app.services.ward_service import WardService
 
 router = APIRouter()
 
-# Role presets for cleaner dependencies
-ALL_ROLES = [UserRole.ADMIN.value, UserRole.DOCTOR.value, UserRole.NURSE.value, UserRole.RECEPTIONIST.value]
-ADMIN_ONLY = [UserRole.ADMIN.value]
+# Role presets
+ALL_ROLES = [
+    UserRole.SUPER_ADMIN.value,
+    UserRole.ADMIN.value,
+    UserRole.DOCTOR.value,
+    UserRole.NURSE.value,
+    UserRole.RECEPTIONIST.value,
+]
+ADMIN_ROLES = [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]
 
 
 @router.get(
@@ -31,10 +37,16 @@ ADMIN_ONLY = [UserRole.ADMIN.value]
     description="Returns aggregate hospital ward capacity, total wards, and active/inactive counts.",
 )
 def get_ward_statistics(
+    hospital_id: Optional[int] = Query(None, description="Filter by hospital ID (SUPER_ADMIN only)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(ALL_ROLES)),
 ):
-    return WardService.get_ward_statistics(db)
+    if current_user.role == UserRole.SUPER_ADMIN.value:
+        target_hospital_id = hospital_id
+    else:
+        target_hospital_id = current_user.hospital_id
+
+    return WardService.get_ward_statistics(db, hospital_id=target_hospital_id)
 
 
 @router.get(
@@ -51,13 +63,21 @@ def list_wards(
     ward_type: Optional[WardTypeEnum] = Query(None, description="Filter by ward type"),
     department: Optional[str] = Query(None, description="Filter by department"),
     status: Optional[WardStatusEnum] = Query(None, description="Filter by ward status"),
+    hospital_id: Optional[int] = Query(None, description="Filter by hospital ID (SUPER_ADMIN only)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(ALL_ROLES)),
 ):
     type_str = ward_type.value if ward_type else None
     status_str = status.value if status else None
+
+    if current_user.role == UserRole.SUPER_ADMIN.value:
+        target_hospital_id = hospital_id
+    else:
+        target_hospital_id = current_user.hospital_id
+
     return WardService.get_wards(
         db=db,
+        hospital_id=target_hospital_id,
         page=page,
         limit=limit,
         search=search,
@@ -79,7 +99,8 @@ def get_ward(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(ALL_ROLES)),
 ):
-    return WardService.get_ward_by_id(db=db, ward_id=ward_id)
+    target_hospital_id = None if current_user.role == UserRole.SUPER_ADMIN.value else current_user.hospital_id
+    return WardService.get_ward_by_id(db=db, ward_id=ward_id, hospital_id=target_hospital_id)
 
 
 @router.get(
@@ -94,7 +115,8 @@ def get_ward_occupancy(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(ALL_ROLES)),
 ):
-    return WardService.get_ward_occupancy(db=db, ward_id=ward_id)
+    target_hospital_id = None if current_user.role == UserRole.SUPER_ADMIN.value else current_user.hospital_id
+    return WardService.get_ward_occupancy(db=db, ward_id=ward_id, hospital_id=target_hospital_id)
 
 
 @router.post(
@@ -102,14 +124,25 @@ def get_ward_occupancy(
     response_model=WardResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create Ward",
-    description="Creates a new hospital ward. Requires ADMIN role.",
+    description="Creates a new hospital ward. Requires ADMIN or SUPER_ADMIN role.",
 )
 def create_ward(
     ward_in: WardCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(ADMIN_ONLY)),
+    current_user: User = Depends(require_roles(ADMIN_ROLES)),
 ):
-    return WardService.create_ward(db=db, ward_in=ward_in)
+    if current_user.role == UserRole.SUPER_ADMIN.value:
+        target_hospital_id = ward_in.hospital_id or current_user.hospital_id or 1
+    else:
+        # Enforce tenant isolation: hospital_id comes strictly from authenticated user's DB record
+        if not current_user.hospital_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User account is not associated with any active hospital facility."
+            )
+        target_hospital_id = current_user.hospital_id
+
+    return WardService.create_ward(db=db, ward_in=ward_in, target_hospital_id=target_hospital_id)
 
 
 @router.put(
@@ -117,15 +150,16 @@ def create_ward(
     response_model=WardResponse,
     status_code=status.HTTP_200_OK,
     summary="Update Ward",
-    description="Updates existing ward information. Requires ADMIN role.",
+    description="Updates existing ward information. Requires ADMIN or SUPER_ADMIN role.",
 )
 def update_ward(
     ward_id: int,
     ward_in: WardUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(ADMIN_ONLY)),
+    current_user: User = Depends(require_roles(ADMIN_ROLES)),
 ):
-    return WardService.update_ward(db=db, ward_id=ward_id, ward_in=ward_in)
+    target_hospital_id = None if current_user.role == UserRole.SUPER_ADMIN.value else current_user.hospital_id
+    return WardService.update_ward(db=db, ward_id=ward_id, ward_in=ward_in, hospital_id=target_hospital_id)
 
 
 @router.delete(
@@ -133,11 +167,12 @@ def update_ward(
     response_model=WardResponse,
     status_code=status.HTTP_200_OK,
     summary="Deactivate Ward",
-    description="Safely deactivates a ward by setting status to INACTIVE. Requires ADMIN role.",
+    description="Safely deactivates a ward by setting status to INACTIVE. Requires ADMIN or SUPER_ADMIN role.",
 )
 def deactivate_ward(
     ward_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(ADMIN_ONLY)),
+    current_user: User = Depends(require_roles(ADMIN_ROLES)),
 ):
-    return WardService.deactivate_ward(db=db, ward_id=ward_id)
+    target_hospital_id = None if current_user.role == UserRole.SUPER_ADMIN.value else current_user.hospital_id
+    return WardService.deactivate_ward(db=db, ward_id=ward_id, hospital_id=target_hospital_id)

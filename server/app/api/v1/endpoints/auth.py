@@ -12,7 +12,8 @@ from app.core.security import (
     get_password_hash,
     verify_password,
 )
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.models.hospital import Hospital
 from app.schemas.token import RefreshTokenRequest, Token
 from app.schemas.user import UserCreate, UserLogin, UserResponse
 
@@ -24,14 +25,13 @@ router = APIRouter()
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register New User Account",
-    description="Registers a new healthcare staff member with role (Admin, Doctor, Nurse, Receptionist).",
+    description="Registers a new healthcare staff member with role (Super Admin, Admin, Doctor, Nurse, Receptionist).",
 )
 def register(
     user_in: UserCreate,
     db: Session = Depends(get_db),
 ) -> Any:
-    """Register user with email uniqueness check and bcrypt password hashing."""
-    # Check if user with given email already exists
+    """Register user with email uniqueness check, hospital association, and bcrypt password hashing."""
     existing_user = db.query(User).filter(User.email == user_in.email.lower()).first()
     if existing_user:
         raise HTTPException(
@@ -39,12 +39,21 @@ def register(
             detail="A user with this email address already exists in the system.",
         )
 
-    # Create new user instance
+    user_role_str = user_in.role.value if hasattr(user_in.role, 'value') else str(user_in.role)
+    target_hospital_id = user_in.hospital_id
+
+    # If normal hospital user and no hospital_id provided, default to the first available hospital
+    if user_role_str != UserRole.SUPER_ADMIN.value and not target_hospital_id:
+        first_h = db.query(Hospital).order_by(Hospital.id.asc()).first()
+        if first_h:
+            target_hospital_id = first_h.id
+
     new_user = User(
         full_name=user_in.full_name,
         email=user_in.email.lower(),
         password_hash=get_password_hash(user_in.password),
-        role=user_in.role.value if hasattr(user_in.role, 'value') else str(user_in.role),
+        role=user_role_str,
+        hospital_id=target_hospital_id,
         is_active=True,
     )
     
@@ -52,7 +61,23 @@ def register(
     db.commit()
     db.refresh(new_user)
     
-    return new_user
+    hospital_name = None
+    if new_user.hospital_id:
+        h = db.query(Hospital).filter(Hospital.id == new_user.hospital_id).first()
+        if h:
+            hospital_name = h.name
+
+    return {
+        "id": new_user.id,
+        "email": new_user.email,
+        "full_name": new_user.full_name,
+        "role": new_user.role,
+        "hospital_id": new_user.hospital_id,
+        "hospital_name": hospital_name,
+        "is_active": new_user.is_active,
+        "created_at": new_user.created_at,
+        "updated_at": new_user.updated_at,
+    }
 
 
 @router.post(
@@ -160,10 +185,27 @@ def refresh_token(
     description="Returns the profile details of the currently authenticated user.",
 )
 def read_current_user(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> Any:
-    """Return profile information of current logged-in user."""
-    return current_user
+    """Return profile information of current logged-in user with hospital details."""
+    hospital_name = None
+    if current_user.hospital_id:
+        h = db.query(Hospital).filter(Hospital.id == current_user.hospital_id).first()
+        if h:
+            hospital_name = h.name
+
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "role": current_user.role,
+        "hospital_id": current_user.hospital_id,
+        "hospital_name": hospital_name,
+        "is_active": current_user.is_active,
+        "created_at": current_user.created_at,
+        "updated_at": current_user.updated_at,
+    }
 
 
 @router.post(

@@ -8,7 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (full_name: string, email: string, password: string, role: UserRole) => Promise<void>;
+  register: (full_name: string, email: string, password: string, role: UserRole, hospital_id?: number) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -91,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (full_name: string, email: string, password: string, role: UserRole) => {
+  const register = async (full_name: string, email: string, password: string, role: UserRole, hospital_id?: number) => {
     setIsLoading(true);
     try {
       await apiClient.post('/auth/register', {
@@ -99,6 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email,
         password,
         role,
+        hospital_id,
       });
       // Automatically log user in after successful registration
       await login(email, password);

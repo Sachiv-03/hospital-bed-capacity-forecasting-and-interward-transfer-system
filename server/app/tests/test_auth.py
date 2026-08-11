@@ -21,6 +21,7 @@ Base.metadata.create_all(bind=engine)
 
 @pytest.fixture(scope="function", autouse=True)
 def clean_database():
+    app.dependency_overrides[get_db] = override_get_db
     db = TestingSessionLocal()
     try:
         for table in reversed(Base.metadata.sorted_tables):
