@@ -87,12 +87,12 @@ export const DashboardPage: React.FC = () => {
 
   // ── Load/poll real capacity data ──────────────────────────────────────────
   const loadCapacity = useCallback(async () => {
-    if (!user?.hospital_id) return;
+    const targetHospitalId = user?.hospital_id || 1;
     setCapacityLoading(true);
     try {
       const [cap, events] = await Promise.all([
-        getHospitalCapacity(user.hospital_id),
-        getEventHistory({ hospital_id: user.hospital_id, limit: 10 }),
+        getHospitalCapacity(targetHospitalId),
+        getEventHistory({ hospital_id: targetHospitalId, limit: 10 }),
       ]);
       setCapacity(cap);
       setRecentEvents(events.items);
