@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, health, hospitals, wards, beds, ingestion, capacity
+from app.api.v1.endpoints import auth, health, hospitals, wards, beds, ingestion, capacity, alerts
 
 api_router = APIRouter()
 
@@ -21,5 +21,9 @@ api_router.include_router(beds.router, prefix="/beds", tags=["Bed Management"])
 # Phase 6 — Data Ingestion Pipeline
 api_router.include_router(ingestion.router, prefix="/ingestion", tags=["Data Ingestion"])
 
+# Stage 2 — Capacity Alerts
+api_router.include_router(alerts.router, prefix="/alerts", tags=["Capacity Alerts"])
+
 # Phase 6 — Capacity APIs (mounted at root /api/v1 so paths are /hospitals/{id}/capacity and /wards/{id}/capacity)
 api_router.include_router(capacity.router, tags=["Capacity"])
+

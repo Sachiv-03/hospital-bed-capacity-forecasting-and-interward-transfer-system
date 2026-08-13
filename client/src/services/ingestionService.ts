@@ -53,3 +53,41 @@ export const triggerSimulateEvent = async (payload: {
   const { data } = await apiClient.post('/ingestion/simulate', payload);
   return data;
 };
+
+// ── Stage 2 Historical & Alert APIs ─────────────────────────────────────────
+
+export const getWardCapacityHistory = async (wardId: number, params?: { start_date?: string; end_date?: string; limit?: number }) => {
+  const { data } = await apiClient.get(`/wards/${wardId}/capacity/history`, { params });
+  return data;
+};
+
+export const getHospitalCapacityHistory = async (hospitalId: number, params?: { start_date?: string; end_date?: string; limit?: number }) => {
+  const { data } = await apiClient.get(`/hospitals/${hospitalId}/capacity/history`, { params });
+  return data;
+};
+
+export const getWardDailySummary = async (wardId: number, params?: { start_date?: string; end_date?: string }) => {
+  const { data } = await apiClient.get(`/wards/${wardId}/daily-summary`, { params });
+  return data;
+};
+
+export const getDataQualityReport = async (hospitalId?: number) => {
+  const { data } = await apiClient.get('/capacity/data-quality', { params: { hospital_id: hospitalId } });
+  return data;
+};
+
+export const getCapacityAlerts = async (params?: { hospital_id?: number; ward_id?: number; status?: string; severity?: string }) => {
+  const { data } = await apiClient.get('/alerts', { params });
+  return data;
+};
+
+export const resolveCapacityAlert = async (alertId: number) => {
+  const { data } = await apiClient.post(`/alerts/${alertId}/resolve`);
+  return data;
+};
+
+export const generateManualSnapshots = async () => {
+  const { data } = await apiClient.post('/capacity/snapshots/generate');
+  return data;
+};
+

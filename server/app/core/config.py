@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     SIMULATOR_INTERVAL_SECONDS: int = 10
     SIMULATOR_HOSPITAL_ID: int = 1
 
+    # Stage 2 — Automated Occupancy Snapshot & Capacity Alerts
+    SNAPSHOT_ENABLED: bool = True
+    SNAPSHOT_INTERVAL_SECONDS: int = 300
+    ALERT_HIGH_THRESHOLD: float = 85.0
+    ALERT_CRITICAL_THRESHOLD: float = 95.0
+    ALERT_LOW_AVAILABILITY_THRESHOLD: int = 2
+
+
     # CORS
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",

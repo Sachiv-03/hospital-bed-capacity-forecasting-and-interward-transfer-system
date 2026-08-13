@@ -254,3 +254,77 @@ export interface HospitalCapacity {
   status: CapacityStatus;
   ward_capacities: WardCapacity[];
 }
+
+// ─── Stage 2 — Historical Data & Alert Types ───────────────────────────────
+
+export interface OccupancySnapshot {
+  id: number;
+  hospital_id: number;
+  ward_id: number;
+  ward_name?: string;
+  snapshot_time: string;
+  total_beds: number;
+  occupied_beds: number;
+  available_beds: number;
+  cleaning_beds: number;
+  reserved_beds: number;
+  maintenance_beds: number;
+  occupancy_percentage: number;
+}
+
+export interface OccupancySnapshotListResponse {
+  items: OccupancySnapshot[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface DailySummary {
+  date: string;
+  hospital_id: number;
+  ward_id: number;
+  ward_name?: string;
+  average_occupancy: number;
+  maximum_occupancy: number;
+  minimum_occupancy: number;
+  admissions: number;
+  discharges: number;
+  transfers_in: number;
+  transfers_out: number;
+}
+
+export type AlertType = 'HIGH_OCCUPANCY' | 'CRITICAL_OCCUPANCY' | 'LOW_AVAILABILITY';
+export type AlertSeverity = 'INFO' | 'WARNING' | 'CRITICAL';
+export type AlertStatus = 'ACTIVE' | 'RESOLVED';
+
+export interface CapacityAlert {
+  id: number;
+  hospital_id: number;
+  ward_id: number;
+  ward_name?: string;
+  hospital_name?: string;
+  alert_type: AlertType;
+  severity: AlertSeverity;
+  message: string;
+  trigger_value: number;
+  threshold_value: number;
+  status: AlertStatus;
+  created_at: string;
+  resolved_at?: string | null;
+}
+
+export interface CapacityAlertListResponse {
+  items: CapacityAlert[];
+  total: number;
+}
+
+export interface DataQualityReport {
+  total_snapshots: number;
+  invalid_snapshots: number;
+  duplicate_snapshots: number;
+  invalid_events: number;
+  missing_data_count: number;
+  last_successful_snapshot: string | null;
+  health_score: number;
+}
+

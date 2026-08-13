@@ -1,9 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { fetchHealthStatus } from '../services/api';
 import { getWardStatistics } from '../services/wardService';
-import { getHospitalCapacity, getEventHistory } from '../services/ingestionService';
+import { getHospitalCapacity, getEventHistory, generateManualSnapshots } from '../services/ingestionService';
 import { HealthStatus, WardStatistics, HospitalCapacity, OccupancyEvent, CapacityStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { HistoricalCapacityChart } from '../components/HistoricalCapacityChart';
+import { CapacityAlertsSection } from '../components/CapacityAlertsSection';
+import { WardTrendSummary } from '../components/WardTrendSummary';
+
 import {
   Activity,
   BedDouble,
@@ -294,8 +298,9 @@ export const DashboardPage: React.FC = () => {
 
       {/* Bed Status Breakdown */}
       {capacity && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           {[
+
             { label: 'Occupied', val: capacity.occupied_beds, color: 'bg-rose-500' },
             { label: 'Available', val: capacity.available_beds, color: 'bg-emerald-500' },
             { label: 'Cleaning', val: capacity.cleaning_beds, color: 'bg-amber-500' },
@@ -313,8 +318,17 @@ export const DashboardPage: React.FC = () => {
         </div>
       )}
 
+
+      {/* Stage 2 — Capacity Alerts Section */}
+      <CapacityAlertsSection hospitalId={user?.hospital_id || 1} />
+
+      {/* Stage 2 — Historical Capacity Line Chart */}
+      <HistoricalCapacityChart hospitalId={user?.hospital_id || 1} />
+
       {/* Future Modules Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+
         <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">24h AI Occupancy Forecast</span>

@@ -36,6 +36,25 @@ tags_metadata = [
     },
 ]
 
+from contextlib import asynccontextmanager
+from app.services.scheduler import scheduler
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: start automated snapshot scheduler
+    try:
+        scheduler.start()
+    except Exception as e:
+        print(f"Scheduler startup notice: {e}")
+    yield
+    # Shutdown: stop scheduler cleanly
+    try:
+        scheduler.stop()
+    except Exception as e:
+        print(f"Scheduler shutdown notice: {e}")
+
+
 app = FastAPI(
     title="Hospital Bed Capacity Forecasting API",
     version=settings.VERSION,
@@ -49,7 +68,9 @@ Providing scalable micro-architecture, database connection management, RBAC auth
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
+    lifespan=lifespan,
 )
+
 
 # Configure CORS Middleware
 if settings.CORS_ORIGINS:

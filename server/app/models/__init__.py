@@ -3,6 +3,8 @@ from app.models.user import User, UserRole
 from app.models.ward import Ward, WardType, WardStatus
 from app.models.bed import Bed, BedStatus, BedType
 from app.models.occupancy_event import OccupancyEvent, EventType, EventSource
+from app.models.occupancy_snapshot import OccupancySnapshot
+from app.models.capacity_alert import CapacityAlert, AlertType, AlertSeverity, AlertStatus
 
 __all__ = [
     "Hospital", "HospitalStatus",
@@ -10,4 +12,7 @@ __all__ = [
     "Ward", "WardType", "WardStatus",
     "Bed", "BedStatus", "BedType",
     "OccupancyEvent", "EventType", "EventSource",
+    "OccupancySnapshot",
+    "CapacityAlert", "AlertType", "AlertSeverity", "AlertStatus",
 ]
+
