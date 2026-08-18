@@ -13,6 +13,7 @@ class WardStatus(str, enum.Enum):
 class WardType(str, enum.Enum):
     GENERAL = "GENERAL"
     ICU = "ICU"
+    STEP_DOWN = "STEP_DOWN"
     EMERGENCY = "EMERGENCY"
     PEDIATRIC = "PEDIATRIC"
     MATERNITY = "MATERNITY"

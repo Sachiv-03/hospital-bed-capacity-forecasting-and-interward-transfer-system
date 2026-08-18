@@ -81,6 +81,7 @@ export interface HospitalListResponse {
 export type WardType =
   | 'GENERAL'
   | 'ICU'
+  | 'STEP_DOWN'
   | 'EMERGENCY'
   | 'PEDIATRIC'
   | 'MATERNITY'
@@ -328,3 +329,101 @@ export interface DataQualityReport {
   health_score: number;
 }
 
+// ─── Stage 4 — Inter-Ward Transfer Decision Support System Types ────────────
+
+export type RecommendationPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type RecommendationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED' | 'STALE';
+
+export interface WardTransferRule {
+  id: number;
+  hospital_id: number;
+  source_ward_id?: number | null;
+  destination_ward_id?: number | null;
+  source_ward_type?: string | null;
+  destination_ward_type?: string | null;
+  allowed: boolean;
+  priority: number;
+  minimum_available_beds: number;
+  maximum_destination_occupancy: number;
+  reason?: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WardMinimalInfo {
+  id: number;
+  name: string;
+  ward_type: string;
+  department: string;
+  capacity: number;
+}
+
+export interface TransferRecommendation {
+  id: number;
+  hospital_id: number;
+  source_ward_id: number;
+  destination_ward_id: number;
+  source_ward?: WardMinimalInfo;
+  destination_ward?: WardMinimalInfo;
+  recommended_at: string;
+  source_current_occupancy: number;
+  source_predicted_occupancy: number;
+  destination_current_occupancy: number;
+  destination_predicted_occupancy: number;
+  available_beds: number;
+  safe_transfer_capacity: number;
+  recommended_transfer_count: number;
+  priority_score: number;
+  priority_level: RecommendationPriority;
+  status: RecommendationStatus;
+  reason: string;
+  warnings?: string[];
+  score_breakdown?: {
+    source_urgency: number;
+    destination_capacity: number;
+    future_capacity: number;
+    compatibility: number;
+    max_possible: number;
+  };
+  forecast_horizon_days: number;
+  forecast_confidence_lower?: number | null;
+  forecast_confidence_upper?: number | null;
+  approved_by_id?: number | null;
+  approved_at?: string | null;
+  rejected_by_id?: number | null;
+  rejected_at?: string | null;
+  rejection_reason?: string | null;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TransferRecommendationDetail extends TransferRecommendation {
+  rules_passed: string[];
+  rules_failed: string[];
+  revalidation_status: string;
+}
+
+export interface TransferOverviewStats {
+  hospital_id: number;
+  critical_pressure_wards: number;
+  high_pressure_wards: number;
+  total_potential_destinations: number;
+  pending_recommendations: number;
+  no_suitable_destination_wards: number;
+  updated_at: string;
+}
+
+export interface AuditLog {
+  id: number;
+  hospital_id: number;
+  user_id?: number | null;
+  user_email?: string | null;
+  user_name?: string | null;
+  action: string;
+  resource_type: string;
+  resource_id?: string | null;
+  timestamp: string;
+  metadata_json?: Record<string, unknown>;
+}

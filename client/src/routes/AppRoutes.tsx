@@ -1,20 +1,23 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { DashboardPage } from '../pages/DashboardPage';
+import { ForecastPage } from '../pages/ForecastPage';
 import { GenericPage } from '../pages/GenericPage';
-import { WardsPage } from '../pages/wards/WardsPage';
-import { WardDetailPage } from '../pages/wards/WardDetailPage';
-import { HospitalsPage } from '../pages/hospitals/HospitalsPage';
 import { HospitalDetailPage } from '../pages/hospitals/HospitalDetailPage';
+import { HospitalsPage } from '../pages/hospitals/HospitalsPage';
+import { WardDetailPage } from '../pages/wards/WardDetailPage';
+import { WardsPage } from '../pages/wards/WardsPage';
+import { TransferDashboardPage } from '../pages/transfers/TransferDashboardPage';
 
 import { LoginPage } from '../pages/auth/LoginPage';
-import { RegisterPage } from '../pages/auth/RegisterPage';
-import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage';
-import { UnauthorizedPage } from '../pages/auth/UnauthorizedPage';
-import { NotFoundPage } from '../pages/NotFoundPage';
+
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 import { RoleGuard } from '../components/auth/RoleGuard';
+import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage';
+import { RegisterPage } from '../pages/auth/RegisterPage';
+import { UnauthorizedPage } from '../pages/auth/UnauthorizedPage';
+import { NotFoundPage } from '../pages/NotFoundPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -35,7 +38,6 @@ export const AppRoutes: React.FC = () => {
         }
       >
         <Route index element={<DashboardPage />} />
-        
         {/* Super Admin Hospitals Route */}
         <Route
           path="hospitals"
@@ -53,7 +55,6 @@ export const AppRoutes: React.FC = () => {
             </RoleGuard>
           }
         />
-
         <Route
           path="patients"
           element={
@@ -66,7 +67,6 @@ export const AppRoutes: React.FC = () => {
             </RoleGuard>
           }
         />
-        
         <Route
           path="beds"
           element={
@@ -79,7 +79,6 @@ export const AppRoutes: React.FC = () => {
             </RoleGuard>
           }
         />
-        
         <Route
           path="wards"
           element={
@@ -88,7 +87,6 @@ export const AppRoutes: React.FC = () => {
             </RoleGuard>
           }
         />
-
         <Route
           path="wards/:id"
           element={
@@ -101,29 +99,20 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="forecast"
           element={
-            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor']}>
-              <GenericPage
-                title="AI Bed Capacity Forecast"
-                description="Predictive Machine Learning models for 24h, 48h, and 7-day occupancy projections."
-                moduleName="AI Forecasting"
-              />
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse', 'receptionist']}>
+              <ForecastPage />
             </RoleGuard>
           }
         />
-        
+
         <Route
           path="transfers"
           element={
             <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse']}>
-              <GenericPage
-                title="Inter-Ward Transfer System"
-                description="Intelligent transfer request routing, priority prioritization, and bed matching."
-                moduleName="Inter-Ward Transfer"
-              />
+              <TransferDashboardPage />
             </RoleGuard>
           }
         />
-        
         <Route
           path="analytics"
           element={
@@ -136,7 +125,6 @@ export const AppRoutes: React.FC = () => {
             </RoleGuard>
           }
         />
-        
         <Route
           path="reports"
           element={
@@ -149,7 +137,6 @@ export const AppRoutes: React.FC = () => {
             </RoleGuard>
           }
         />
-        
         <Route
           path="settings"
           element={

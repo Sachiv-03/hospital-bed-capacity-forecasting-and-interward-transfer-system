@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, health, hospitals, wards, beds, ingestion, capacity, alerts
+from app.api.v1.endpoints import auth, health, hospitals, wards, beds, ingestion, capacity, alerts, forecasting, transfers
 
 api_router = APIRouter()
 
@@ -24,6 +24,16 @@ api_router.include_router(ingestion.router, prefix="/ingestion", tags=["Data Ing
 # Stage 2 — Capacity Alerts
 api_router.include_router(alerts.router, prefix="/alerts", tags=["Capacity Alerts"])
 
-# Phase 6 — Capacity APIs (mounted at root /api/v1 so paths are /hospitals/{id}/capacity and /wards/{id}/capacity)
+# Phase 6 — Capacity APIs
 api_router.include_router(capacity.router, tags=["Capacity"])
+
+# Stage 3 — Bed Capacity Forecasting (mounted at root for /wards/{id}/forecast and /hospitals/{id}/forecast, and at /forecasting)
+api_router.include_router(forecasting.router, tags=["Bed Capacity Forecasting"])
+api_router.include_router(forecasting.router, prefix="/forecasting", tags=["Bed Capacity Forecasting"])
+
+# Stage 4 — Inter-Ward Transfer Decision Support System
+api_router.include_router(transfers.router, prefix="/transfers", tags=["Inter-Ward Transfers"])
+
+
+
 

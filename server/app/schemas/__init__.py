@@ -20,6 +20,14 @@ from app.schemas.occupancy_event import (
     SimulateEventRequest,
 )
 from app.schemas.capacity import WardCapacityResponse, HospitalCapacityResponse, get_capacity_status
+from app.schemas.forecast import (
+    WardForecastResponse,
+    HospitalForecastResponse,
+    ForecastHistoryResponse,
+    ModelPerformanceResponse,
+    ManualForecastGenerateResponse,
+    ForecastItem,
+)
 
 __all__ = [
     "UserCreate", "UserLogin", "UserResponse", "UserRoleEnum",
@@ -31,4 +39,7 @@ __all__ = [
     "OccupancyEventIngest", "OccupancyEventResponse", "OccupancyEventListResponse",
     "SimulateEventRequest",
     "WardCapacityResponse", "HospitalCapacityResponse", "get_capacity_status",
+    "WardForecastResponse", "HospitalForecastResponse", "ForecastHistoryResponse",
+    "ModelPerformanceResponse", "ManualForecastGenerateResponse", "ForecastItem",
 ]
+

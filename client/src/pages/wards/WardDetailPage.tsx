@@ -14,7 +14,14 @@ import {
   Edit,
   AlertCircle,
   Loader2,
+  TrendingUp,
 } from 'lucide-react';
+import { forecastService, WardForecastResponse } from '../../services/forecastService';
+import { ForecastSummaryCards } from '../../components/forecast/ForecastSummaryCards';
+import { ForecastChart } from '../../components/forecast/ForecastChart';
+import { ForecastWarningBanner } from '../../components/forecast/ForecastWarningBanner';
+import { ModelPerformanceCard } from '../../components/forecast/ModelPerformanceCard';
+
 
 export const WardDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -32,6 +39,9 @@ export const WardDetailPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [modalApiError, setModalApiError] = useState<string | null>(null);
 
+  const [wardForecast, setWardForecast] = useState<WardForecastResponse | null>(null);
+  const [forecastLoading, setForecastLoading] = useState<boolean>(true);
+
   useEffect(() => {
     if (!id) return;
     const wardId = parseInt(id, 10);
@@ -42,19 +52,28 @@ export const WardDetailPage: React.FC = () => {
     }
 
     setLoading(true);
-    Promise.all([getWard(wardId), getWardOccupancy(wardId)])
-      .then(([wardData, occupancyData]) => {
+    setForecastLoading(true);
+    Promise.all([
+      getWard(wardId),
+      getWardOccupancy(wardId),
+      forecastService.getWardForecast(wardId, 7).catch(() => null),
+    ])
+      .then(([wardData, occupancyData, fcData]) => {
         setWard(wardData);
         setOccupancy(occupancyData);
+        setWardForecast(fcData);
         setLoading(false);
+        setForecastLoading(false);
       })
       .catch((err: unknown) => {
         console.error('Failed to fetch ward details:', err);
         const errorMsg = (err as AxiosError<{ detail?: string }>).response?.data?.detail || 'Ward not found or server error.';
         setError(errorMsg);
         setLoading(false);
+        setForecastLoading(false);
       });
   }, [id]);
+
 
   const handleEditSubmit = async (formData: WardCreateInput) => {
     if (!ward) return;
@@ -253,6 +272,15 @@ export const WardDetailPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Stage 3 — AI Bed Capacity Forecast Section */}
+      <div className="space-y-6">
+        <ForecastWarningBanner forecastData={wardForecast} />
+        <ForecastSummaryCards data={wardForecast} loading={forecastLoading} />
+        <ForecastChart forecastData={wardForecast} horizon={7} />
+        <ModelPerformanceCard wardId={ward.id} />
+      </div>
+
 
       {/* Edit Form Modal */}
       <WardFormModal

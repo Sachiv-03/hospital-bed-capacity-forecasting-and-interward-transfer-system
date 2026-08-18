@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { fetchHealthStatus } from '../services/api';
 import { getWardStatistics } from '../services/wardService';
-import { getHospitalCapacity, getEventHistory, generateManualSnapshots } from '../services/ingestionService';
+import { getHospitalCapacity, getEventHistory } from '../services/ingestionService';
 import { HealthStatus, WardStatistics, HospitalCapacity, OccupancyEvent, CapacityStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { HistoricalCapacityChart } from '../components/HistoricalCapacityChart';
 import { CapacityAlertsSection } from '../components/CapacityAlertsSection';
-import { WardTrendSummary } from '../components/WardTrendSummary';
+import { HospitalForecastOverview } from '../components/forecast/HospitalForecastOverview';
+import { TransferPressureWidget } from '../components/dashboard/TransferPressureWidget';
+
 
 import {
   Activity,
@@ -322,6 +324,9 @@ export const DashboardPage: React.FC = () => {
       {/* Stage 2 — Capacity Alerts Section */}
       <CapacityAlertsSection hospitalId={user?.hospital_id || 1} />
 
+      {/* Stage 4 — Transfer Pressure Widget */}
+      <TransferPressureWidget hospitalId={user?.hospital_id || 1} />
+
       {/* Stage 2 — Historical Capacity Line Chart */}
       <HistoricalCapacityChart hospitalId={user?.hospital_id || 1} />
 
@@ -412,7 +417,10 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Architecture Toggle */}
+      {/* Stage 3 — AI Bed Capacity Forecast Overview */}
+      <HospitalForecastOverview hospitalId={user?.hospital_id || 1} />
+
+      {/* System Architecture Specifications */}
       <div className="pt-2">
         <button
           onClick={() => setShowArchitecture((prev) => !prev)}

@@ -27,7 +27,13 @@ class Settings(BaseSettings):
     SNAPSHOT_INTERVAL_SECONDS: int = 300
     ALERT_HIGH_THRESHOLD: float = 85.0
     ALERT_CRITICAL_THRESHOLD: float = 95.0
-    ALERT_LOW_AVAILABILITY_THRESHOLD: int = 2
+    # Stage 3 — Bed Capacity Forecasting
+    FORECAST_ENABLED: bool = True
+    FORECAST_INTERVAL_SECONDS: int = 86400  # Default 24 hours (configurable for dev)
+    FORECAST_MIN_OBSERVATIONS: int = 7       # Minimum daily snapshot observations for forecasting
+    FORECAST_NORMAL_THRESHOLD: float = 70.0
+    FORECAST_MODERATE_THRESHOLD: float = 85.0
+    FORECAST_HIGH_THRESHOLD: float = 95.0
 
 
     # CORS
