@@ -427,3 +427,128 @@ export interface AuditLog {
   timestamp: string;
   metadata_json?: Record<string, unknown>;
 }
+
+// ─── Phase 5 — Patient & Admission Types ────────────────────────────────────
+
+export type PatientStatus = 'ACTIVE' | 'INACTIVE';
+export type AdmissionStatus = 'ADMITTED' | 'DISCHARGED' | 'CANCELLED';
+
+export interface CurrentAdmissionInfo {
+  admission_id: number;
+  admission_number: string;
+  admission_date: string;
+  ward_id: number;
+  ward_name: string;
+  bed_id: number;
+  bed_number: string;
+  status: string;
+}
+
+export interface Patient {
+  id: number;
+  hospital_id: number;
+  hospital_name?: string | null;
+  patient_identifier: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  gender: string;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  status: PatientStatus;
+  created_at: string;
+  updated_at: string;
+  current_admission?: CurrentAdmissionInfo | null;
+}
+
+export interface PatientCreateInput {
+  patient_identifier?: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  gender: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  hospital_id?: number;
+}
+
+export interface PatientUpdateInput {
+  first_name?: string;
+  last_name?: string;
+  date_of_birth?: string;
+  gender?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  status?: PatientStatus;
+}
+
+export interface PatientListResponse {
+  items: Patient[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+
+export interface MinimalPatientInfo {
+  id: number;
+  patient_identifier: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth?: string;
+  gender?: string;
+}
+
+export interface Admission {
+  id: number;
+  hospital_id: number;
+  patient_id: number;
+  ward_id: number;
+  bed_id: number;
+  admission_number: string;
+  admission_date: string;
+  discharge_date?: string | null;
+  status: AdmissionStatus;
+  admission_reason?: string | null;
+  discharge_notes?: string | null;
+  created_by?: number | null;
+  discharged_by?: number | null;
+  created_at: string;
+  updated_at: string;
+  hospital_name?: string | null;
+  ward_name?: string | null;
+  bed_number?: string | null;
+  patient?: MinimalPatientInfo | null;
+  duration_hours?: number | null;
+}
+
+export interface AdmissionCreateInput {
+  patient_id: number;
+  ward_id: number;
+  bed_id: number;
+  admission_reason?: string;
+  hospital_id?: number;
+}
+
+export interface DischargeInput {
+  discharge_date?: string;
+  discharge_notes?: string;
+}
+
+export interface AdmissionListResponse {
+  items: Admission[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+

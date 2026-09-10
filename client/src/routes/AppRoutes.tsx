@@ -8,6 +8,7 @@ import { HospitalDetailPage } from '../pages/hospitals/HospitalDetailPage';
 import { HospitalsPage } from '../pages/hospitals/HospitalsPage';
 import { WardDetailPage } from '../pages/wards/WardDetailPage';
 import { WardsPage } from '../pages/wards/WardsPage';
+import { BedsPage } from '../pages/beds/BedsPage';
 import { TransferDashboardPage } from '../pages/transfers/TransferDashboardPage';
 
 import { LoginPage } from '../pages/auth/LoginPage';
@@ -18,6 +19,11 @@ import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
 import { UnauthorizedPage } from '../pages/auth/UnauthorizedPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
+
+import { PatientsPage } from '../pages/patients/PatientsPage';
+import { PatientDetailPage } from '../pages/patients/PatientDetailPage';
+import { NewPatientPage } from '../pages/patients/NewPatientPage';
+import { AdmitPatientPage } from '../pages/patients/AdmitPatientPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -59,11 +65,31 @@ export const AppRoutes: React.FC = () => {
           path="patients"
           element={
             <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse', 'receptionist']}>
-              <GenericPage
-                title="Patients Directory"
-                description="Patient admission status, demographic metadata, and bed assignment registry."
-                moduleName="Patients Management"
-              />
+              <PatientsPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="patients/new"
+          element={
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse', 'receptionist']}>
+              <NewPatientPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="patients/:id"
+          element={
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse', 'receptionist']}>
+              <PatientDetailPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="patients/:id/admit"
+          element={
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse', 'receptionist']}>
+              <AdmitPatientPage />
             </RoleGuard>
           }
         />
@@ -71,11 +97,7 @@ export const AppRoutes: React.FC = () => {
           path="beds"
           element={
             <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse']}>
-              <GenericPage
-                title="Hospital Bed Management"
-                description="Real-time bed availability tracking, maintenance statuses, and telemetry."
-                moduleName="Bed Capacity"
-              />
+              <BedsPage />
             </RoleGuard>
           }
         />

@@ -29,6 +29,14 @@ from app.schemas.forecast import (
     ForecastItem,
 )
 
+from app.schemas.patient import (
+    PatientStatusEnum, PatientBase, PatientCreate, PatientUpdate, PatientStatusUpdate,
+    PatientResponse, PatientListResponse, CurrentAdmissionInfo
+)
+from app.schemas.admission import (
+    AdmissionStatusEnum, AdmissionCreate, DischargeCreate, AdmissionResponse, AdmissionListResponse
+)
+
 __all__ = [
     "UserCreate", "UserLogin", "UserResponse", "UserRoleEnum",
     "Token", "TokenPayload", "RefreshTokenRequest",
@@ -41,5 +49,8 @@ __all__ = [
     "WardCapacityResponse", "HospitalCapacityResponse", "get_capacity_status",
     "WardForecastResponse", "HospitalForecastResponse", "ForecastHistoryResponse",
     "ModelPerformanceResponse", "ManualForecastGenerateResponse", "ForecastItem",
+    "PatientStatusEnum", "PatientBase", "PatientCreate", "PatientUpdate", "PatientStatusUpdate",
+    "PatientResponse", "PatientListResponse", "CurrentAdmissionInfo",
+    "AdmissionStatusEnum", "AdmissionCreate", "DischargeCreate", "AdmissionResponse", "AdmissionListResponse",
 ]
 

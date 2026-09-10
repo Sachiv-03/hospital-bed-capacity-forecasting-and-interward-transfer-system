@@ -284,10 +284,11 @@ def test_ward_capacity_calculation(db):
 
     cap = CapacityService.get_ward_capacity(db, w.id, h.id)
     assert cap.total_beds == 4
+    assert cap.operational_beds == 3
     assert cap.occupied_beds == 2
     assert cap.available_beds == 1
     assert cap.cleaning_beds == 1
-    assert cap.occupancy_percentage == 50.0
+    assert cap.occupancy_percentage == 66.67
 
 
 def test_hospital_capacity_aggregation(db):

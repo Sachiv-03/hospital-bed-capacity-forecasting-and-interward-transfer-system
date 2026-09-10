@@ -119,6 +119,48 @@ def get_ward_occupancy(
     return WardService.get_ward_occupancy(db=db, ward_id=ward_id, hospital_id=target_hospital_id)
 
 
+@router.get(
+    "/{ward_id}/available-beds",
+    status_code=status.HTTP_200_OK,
+    summary="Get Available Beds in Ward",
+    description="Returns list of available beds in the specified ward for patient admission.",
+)
+def get_ward_available_beds(
+    ward_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(ALL_ROLES)),
+):
+    from app.services.admission_service import AdmissionService
+    target_hospital_id = current_user.hospital_id or 1 if current_user.role == UserRole.SUPER_ADMIN.value else current_user.hospital_id
+    return AdmissionService.get_available_beds_for_ward(db=db, ward_id=ward_id, hospital_id=target_hospital_id)
+
+
+@router.get(
+    "/{ward_id}/admissions",
+    status_code=status.HTTP_200_OK,
+    summary="Get Ward Admissions",
+    description="Returns admissions list for the specified ward.",
+)
+def get_ward_admissions(
+    ward_id: int,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(ALL_ROLES)),
+):
+    from app.services.admission_service import AdmissionService
+    target_hospital_id = current_user.hospital_id or 1 if current_user.role == UserRole.SUPER_ADMIN.value else current_user.hospital_id
+    return AdmissionService.get_admissions(
+        db=db,
+        hospital_id=target_hospital_id,
+        ward_id=ward_id,
+        status_filter=status_filter,
+        page=page,
+        limit=limit
+    )
+
+
 @router.post(
     "",
     response_model=WardResponse,

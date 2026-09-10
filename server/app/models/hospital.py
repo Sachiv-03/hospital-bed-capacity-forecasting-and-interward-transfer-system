@@ -28,6 +28,8 @@ class Hospital(Base):
     wards = relationship("Ward", back_populates="hospital", cascade="all, delete-orphan")
     beds = relationship("Bed", back_populates="hospital", cascade="all, delete-orphan")
     occupancy_events = relationship("OccupancyEvent", back_populates="hospital", cascade="all, delete-orphan")
+    patients = relationship("Patient", back_populates="hospital", cascade="all, delete-orphan")
+    admissions = relationship("Admission", back_populates="hospital", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Hospital id={self.id} code='{self.code}' name='{self.name}' status='{self.status}'>"

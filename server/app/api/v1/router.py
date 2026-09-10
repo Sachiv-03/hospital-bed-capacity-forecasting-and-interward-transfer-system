@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, health, hospitals, wards, beds, ingestion, capacity, alerts, forecasting, transfers
+from app.api.v1.endpoints import auth, health, hospitals, wards, beds, patients, admissions, occupancy, ingestion, capacity, alerts, forecasting, transfers
 
 api_router = APIRouter()
 
@@ -15,19 +15,26 @@ api_router.include_router(hospitals.router, prefix="/hospitals", tags=["Hospital
 # Ward Management
 api_router.include_router(wards.router, prefix="/wards", tags=["Ward Management"])
 
-# Phase 6 — Bed Management
+# Bed Management
 api_router.include_router(beds.router, prefix="/beds", tags=["Bed Management"])
 
-# Phase 6 — Data Ingestion Pipeline
+# Phase 5 — Patient & Admission / Discharge Management
+api_router.include_router(patients.router, prefix="/patients", tags=["Patient Management"])
+api_router.include_router(admissions.router, prefix="/admissions", tags=["Admission / Discharge Management"])
+
+# Phase 6 — Occupancy & Capacity Tracking
+api_router.include_router(occupancy.router, prefix="/occupancy", tags=["Occupancy & Capacity Tracking"])
+
+# Data Ingestion Pipeline
 api_router.include_router(ingestion.router, prefix="/ingestion", tags=["Data Ingestion"])
 
 # Stage 2 — Capacity Alerts
 api_router.include_router(alerts.router, prefix="/alerts", tags=["Capacity Alerts"])
 
-# Phase 6 — Capacity APIs
+# Capacity APIs
 api_router.include_router(capacity.router, tags=["Capacity"])
 
-# Stage 3 — Bed Capacity Forecasting (mounted at root for /wards/{id}/forecast and /hospitals/{id}/forecast, and at /forecasting)
+# Stage 3 — Bed Capacity Forecasting
 api_router.include_router(forecasting.router, tags=["Bed Capacity Forecasting"])
 api_router.include_router(forecasting.router, prefix="/forecasting", tags=["Bed Capacity Forecasting"])
 

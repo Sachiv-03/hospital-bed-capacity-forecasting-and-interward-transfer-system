@@ -9,6 +9,8 @@ from app.models.bed_capacity_forecast import BedCapacityForecast, RiskLevel
 from app.models.ward_transfer_rule import WardTransferRule
 from app.models.transfer_recommendation import TransferRecommendation, RecommendationStatus, RecommendationPriority
 from app.models.audit_log import AuditLog
+from app.models.patient import Patient, PatientStatus
+from app.models.admission import Admission, AdmissionStatus
 
 __all__ = [
     "Hospital", "HospitalStatus",
@@ -22,4 +24,6 @@ __all__ = [
     "WardTransferRule",
     "TransferRecommendation", "RecommendationStatus", "RecommendationPriority",
     "AuditLog",
+    "Patient", "PatientStatus",
+    "Admission", "AdmissionStatus",
 ]
