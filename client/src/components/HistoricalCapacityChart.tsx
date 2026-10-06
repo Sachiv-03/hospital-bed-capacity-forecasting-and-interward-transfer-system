@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -11,6 +11,14 @@ import {
 } from 'recharts';
 import { TrendingUp, Calendar, RefreshCw } from 'lucide-react';
 import { getHospitalCapacityHistory } from '../services/ingestionService';
+
+interface SnapshotItem {
+  timestamp: string;
+  total_beds: number;
+  occupied_beds: number;
+  available_beds: number;
+  occupancy_percentage: number;
+}
 
 interface ChartItem {
   timestamp: string;
@@ -30,13 +38,13 @@ export const HistoricalCapacityChart: React.FC<Props> = ({ hospitalId }) => {
   const [data, setData] = useState<ChartItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     setLoading(true);
     try {
       const now = new Date();
       let startDate: Date;
       if (range === 'today') {
-        startDate = new Date(now.getFullYear(), now.monthIndex || now.getMonth(), now.getDate());
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       } else if (range === '7d') {
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       } else {
@@ -49,7 +57,7 @@ export const HistoricalCapacityChart: React.FC<Props> = ({ hospitalId }) => {
         limit: 300,
       });
 
-      const formatted: ChartItem[] = (res || []).map((item: any) => {
+      const formatted: ChartItem[] = (res || []).map((item: SnapshotItem) => {
         const d = new Date(item.timestamp);
         const timeLabel =
           range === 'today'
@@ -71,11 +79,11 @@ export const HistoricalCapacityChart: React.FC<Props> = ({ hospitalId }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [hospitalId, range]);
 
   useEffect(() => {
     fetchHistory();
-  }, [hospitalId, range]);
+  }, [fetchHistory]);
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
@@ -165,7 +173,7 @@ export const HistoricalCapacityChart: React.FC<Props> = ({ hospitalId }) => {
                   color: '#fff',
                   fontSize: '12px',
                 }}
-                formatter={(value: any, name: string) => [
+                formatter={(value: number | string, name: string) => [
                   name === 'occupancy_percentage' ? `${value}%` : value,
                   name === 'occupancy_percentage'
                     ? 'Occupancy Rate'

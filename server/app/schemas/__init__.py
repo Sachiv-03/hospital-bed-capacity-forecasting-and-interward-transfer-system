@@ -36,6 +36,9 @@ from app.schemas.patient import (
 from app.schemas.admission import (
     AdmissionStatusEnum, AdmissionCreate, DischargeCreate, AdmissionResponse, AdmissionListResponse
 )
+from app.schemas.patient_transfer import (
+    TransferStatusEnum, TransferCreate, TransferApproveRequest, TransferRejectRequest, TransferResponse, TransferListResponse
+)
 
 __all__ = [
     "UserCreate", "UserLogin", "UserResponse", "UserRoleEnum",
@@ -52,5 +55,7 @@ __all__ = [
     "PatientStatusEnum", "PatientBase", "PatientCreate", "PatientUpdate", "PatientStatusUpdate",
     "PatientResponse", "PatientListResponse", "CurrentAdmissionInfo",
     "AdmissionStatusEnum", "AdmissionCreate", "DischargeCreate", "AdmissionResponse", "AdmissionListResponse",
+    "TransferStatusEnum", "TransferCreate", "TransferApproveRequest", "TransferRejectRequest", "TransferResponse", "TransferListResponse",
 ]
+
 

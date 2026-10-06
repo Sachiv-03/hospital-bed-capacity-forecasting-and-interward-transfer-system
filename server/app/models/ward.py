@@ -30,6 +30,7 @@ class Ward(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     hospital_id = Column(Integer, ForeignKey("hospitals.id", ondelete="CASCADE"), nullable=False, index=True)
+    external_ward_id = Column(String(100), index=True, nullable=True)
     name = Column(String(255), nullable=False, index=True)
     ward_type = Column(String(50), nullable=False, default=WardType.GENERAL.value, index=True)
     department = Column(String(255), nullable=False, index=True)

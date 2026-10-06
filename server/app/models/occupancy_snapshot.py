@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, Float, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database.session import Base
 
@@ -21,6 +21,7 @@ class OccupancySnapshot(Base):
     reserved_beds = Column(Integer, nullable=False, default=0)
     maintenance_beds = Column(Integer, nullable=False, default=0)
     occupancy_percentage = Column(Float, nullable=False, default=0.0)
+    data_source = Column(String(50), default="SIMULATED", nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     hospital = relationship("Hospital")

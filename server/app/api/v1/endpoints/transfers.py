@@ -23,8 +23,17 @@ from app.schemas.transfer_recommendation import (
     TransferOverviewStatsResponse,
 )
 from app.schemas.audit_log import AuditLogResponse
+from app.schemas.patient_transfer import (
+    TransferCreate,
+    TransferApproveRequest,
+    TransferRejectRequest,
+    TransferResponse,
+    TransferListResponse,
+)
 from app.services.transfer_service import TransferService
+from app.services.patient_transfer_service import PatientTransferService
 from app.services.audit_service import AuditService
+
 
 router = APIRouter()
 
@@ -404,3 +413,199 @@ def get_audit_logs(
             metadata_json=l.metadata_json or {},
         ))
     return res
+
+
+# ── 9. PATIENT INTER-WARD TRANSFERS ─────────────────────────────────────────
+@router.post("/patient-transfers", response_model=TransferResponse, status_code=status.HTTP_201_CREATED)
+def create_patient_transfer(
+    req: TransferCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([
+        UserRole.SUPER_ADMIN.value,
+        UserRole.ADMIN.value,
+        UserRole.DOCTOR.value,
+        UserRole.NURSE.value,
+    ])),
+):
+    """Request an inter-ward patient transfer for an admitted patient."""
+    h_id = enforce_hospital_access(current_user, req.hospital_id)
+    try:
+        transfer = PatientTransferService.create_transfer_request(
+            db=db,
+            hospital_id=h_id,
+            user_id=current_user.id,
+            patient_id=req.patient_id,
+            destination_ward_id=req.destination_ward_id,
+            destination_bed_id=req.destination_bed_id,
+            reason=req.reason,
+        )
+        return transfer
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/patient-transfers", response_model=TransferListResponse)
+def list_patient_transfers(
+    hospital_id: Optional[int] = Query(None),
+    status_filter: Optional[str] = Query(None, alias="status"),
+    patient_id: Optional[int] = Query(None),
+    source_ward_id: Optional[int] = Query(None),
+    destination_ward_id: Optional[int] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """List inter-ward patient transfers for an authorized hospital."""
+    h_id = enforce_hospital_access(current_user, hospital_id)
+    offset = (page - 1) * limit
+    transfers, total = PatientTransferService.get_transfers(
+        db=db,
+        hospital_id=h_id,
+        status_filter=status_filter,
+        patient_id=patient_id,
+        source_ward_id=source_ward_id,
+        destination_ward_id=destination_ward_id,
+        limit=limit,
+        offset=offset,
+    )
+    pages = (total + limit - 1) // limit if total > 0 else 1
+    return TransferListResponse(
+        items=transfers,
+        total=total,
+        page=page,
+        limit=limit,
+        pages=pages,
+    )
+
+
+@router.get("/patient-transfers/{transfer_id}", response_model=TransferResponse)
+def get_patient_transfer_detail(
+    transfer_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Retrieve details of a single inter-ward transfer."""
+    # First inspect transfer to enforce hospital access
+    transfer_obj = PatientTransferService.get_transfer_by_id(db, transfer_id, current_user.hospital_id or 1)
+    if not transfer_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transfer record not found.")
+    enforce_hospital_access(current_user, transfer_obj.hospital_id)
+    return transfer_obj
+
+
+@router.patch("/patient-transfers/{transfer_id}/approve", response_model=TransferResponse)
+def approve_patient_transfer(
+    transfer_id: int,
+    req: Optional[TransferApproveRequest] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([
+        UserRole.SUPER_ADMIN.value,
+        UserRole.ADMIN.value,
+        UserRole.DOCTOR.value,
+    ])),
+):
+    """Approve an inter-ward patient transfer request."""
+    # Ensure transfer exists and user has access
+    transfer_obj = PatientTransferService.get_transfer_by_id(db, transfer_id, current_user.hospital_id or 1)
+    if not transfer_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transfer record not found.")
+    h_id = enforce_hospital_access(current_user, transfer_obj.hospital_id)
+    notes = req.notes if req else None
+    try:
+        approved = PatientTransferService.approve_transfer_request(
+            db=db,
+            transfer_id=transfer_id,
+            hospital_id=h_id,
+            user_id=current_user.id,
+            notes=notes,
+        )
+        return approved
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.patch("/patient-transfers/{transfer_id}/reject", response_model=TransferResponse)
+def reject_patient_transfer(
+    transfer_id: int,
+    req: TransferRejectRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([
+        UserRole.SUPER_ADMIN.value,
+        UserRole.ADMIN.value,
+        UserRole.DOCTOR.value,
+    ])),
+):
+    """Reject an inter-ward patient transfer request."""
+    transfer_obj = PatientTransferService.get_transfer_by_id(db, transfer_id, current_user.hospital_id or 1)
+    if not transfer_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transfer record not found.")
+    h_id = enforce_hospital_access(current_user, transfer_obj.hospital_id)
+    try:
+        rejected = PatientTransferService.reject_transfer_request(
+            db=db,
+            transfer_id=transfer_id,
+            hospital_id=h_id,
+            user_id=current_user.id,
+            rejection_reason=req.rejection_reason,
+        )
+        return rejected
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.patch("/patient-transfers/{transfer_id}/complete", response_model=TransferResponse)
+def complete_patient_transfer(
+    transfer_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([
+        UserRole.SUPER_ADMIN.value,
+        UserRole.ADMIN.value,
+        UserRole.DOCTOR.value,
+        UserRole.NURSE.value,
+    ])),
+):
+    """Execute complete patient transfer, switching bed statuses and relocating admission."""
+    transfer_obj = PatientTransferService.get_transfer_by_id(db, transfer_id, current_user.hospital_id or 1)
+    if not transfer_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transfer record not found.")
+    h_id = enforce_hospital_access(current_user, transfer_obj.hospital_id)
+    try:
+        completed = PatientTransferService.complete_transfer_request(
+            db=db,
+            transfer_id=transfer_id,
+            hospital_id=h_id,
+            user_id=current_user.id,
+        )
+        return completed
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.patch("/patient-transfers/{transfer_id}/cancel", response_model=TransferResponse)
+def cancel_patient_transfer(
+    transfer_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([
+        UserRole.SUPER_ADMIN.value,
+        UserRole.ADMIN.value,
+        UserRole.DOCTOR.value,
+        UserRole.NURSE.value,
+    ])),
+):
+    """Cancel a pending inter-ward transfer request."""
+    transfer_obj = PatientTransferService.get_transfer_by_id(db, transfer_id, current_user.hospital_id or 1)
+    if not transfer_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transfer record not found.")
+    h_id = enforce_hospital_access(current_user, transfer_obj.hospital_id)
+    try:
+        cancelled = PatientTransferService.cancel_transfer_request(
+            db=db,
+            transfer_id=transfer_id,
+            hospital_id=h_id,
+            user_id=current_user.id,
+        )
+        return cancelled
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+

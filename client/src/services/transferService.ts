@@ -89,4 +89,55 @@ export const transferService = {
     });
     return response.data;
   },
+
+  // ── PATIENT INTER-WARD TRANSFERS ──────────────────────────────────────────
+  createPatientTransfer: async (data: {
+    patient_id: number;
+    destination_ward_id: number;
+    destination_bed_id: number;
+    reason?: string;
+    hospital_id?: number;
+  }) => {
+    const response = await apiClient.post('/transfers/patient-transfers', data);
+    return response.data;
+  },
+
+  getPatientTransfers: async (params?: {
+    hospital_id?: number;
+    status?: string;
+    patient_id?: number;
+    source_ward_id?: number;
+    destination_ward_id?: number;
+    page?: number;
+    limit?: number;
+  }) => {
+    const response = await apiClient.get('/transfers/patient-transfers', { params });
+    return response.data;
+  },
+
+  getPatientTransferDetail: async (id: number) => {
+    const response = await apiClient.get(`/transfers/patient-transfers/${id}`);
+    return response.data;
+  },
+
+  approvePatientTransfer: async (id: number, notes?: string) => {
+    const response = await apiClient.patch(`/transfers/patient-transfers/${id}/approve`, { notes });
+    return response.data;
+  },
+
+  rejectPatientTransfer: async (id: number, rejection_reason: string) => {
+    const response = await apiClient.patch(`/transfers/patient-transfers/${id}/reject`, { rejection_reason });
+    return response.data;
+  },
+
+  completePatientTransfer: async (id: number) => {
+    const response = await apiClient.patch(`/transfers/patient-transfers/${id}/complete`);
+    return response.data;
+  },
+
+  cancelPatientTransfer: async (id: number) => {
+    const response = await apiClient.patch(`/transfers/patient-transfers/${id}/cancel`);
+    return response.data;
+  },
 };
+

@@ -16,6 +16,7 @@ class Hospital(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     name = Column(String(200), nullable=False, index=True)
     code = Column(String(50), unique=True, index=True, nullable=False)
+    external_hospital_id = Column(String(100), unique=True, index=True, nullable=True)
     address = Column(Text, nullable=True)
     city = Column(String(100), nullable=True, index=True)
     state = Column(String(100), nullable=True)

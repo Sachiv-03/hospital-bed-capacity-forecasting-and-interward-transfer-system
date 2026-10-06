@@ -12,6 +12,7 @@ class HospitalStatusEnum(str, Enum):
 class HospitalBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=200, json_schema_extra={"example": "Apollo Medical Center"})
     code: str = Field(..., min_length=2, max_length=50, json_schema_extra={"example": "H001"})
+    external_hospital_id: Optional[str] = Field(None, max_length=100, json_schema_extra={"example": "EXT-HOSP-001"})
     address: Optional[str] = Field(None, json_schema_extra={"example": "123 Healthcare Boulevard"})
     city: Optional[str] = Field(None, max_length=100, json_schema_extra={"example": "Metropolis"})
     state: Optional[str] = Field(None, max_length=100, json_schema_extra={"example": "New York"})
@@ -25,6 +26,7 @@ class HospitalCreate(HospitalBase):
 class HospitalUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=200)
     code: Optional[str] = Field(None, min_length=2, max_length=50)
+    external_hospital_id: Optional[str] = Field(None, max_length=100)
     address: Optional[str] = None
     city: Optional[str] = Field(None, max_length=100)
     state: Optional[str] = Field(None, max_length=100)

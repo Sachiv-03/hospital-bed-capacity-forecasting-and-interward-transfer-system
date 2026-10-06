@@ -11,6 +11,7 @@ from app.models.transfer_recommendation import TransferRecommendation, Recommend
 from app.models.audit_log import AuditLog
 from app.models.patient import Patient, PatientStatus
 from app.models.admission import Admission, AdmissionStatus
+from app.models.transfer import Transfer, TransferStatus
 
 __all__ = [
     "Hospital", "HospitalStatus",
@@ -26,4 +27,6 @@ __all__ = [
     "AuditLog",
     "Patient", "PatientStatus",
     "Admission", "AdmissionStatus",
+    "Transfer", "TransferStatus",
 ]
+

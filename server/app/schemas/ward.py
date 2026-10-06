@@ -22,6 +22,7 @@ class WardTypeEnum(str, Enum):
 
 class WardBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, json_schema_extra={"example": "Cardiology ICU A"})
+    external_ward_id: Optional[str] = Field(None, max_length=100, json_schema_extra={"example": "EXT-WARD-001"})
     ward_type: WardTypeEnum = Field(default=WardTypeEnum.GENERAL, json_schema_extra={"example": "ICU"})
     department: str = Field(..., min_length=1, max_length=255, json_schema_extra={"example": "Cardiology"})
     floor: Union[str, int] = Field(..., json_schema_extra={"example": "Floor 2"})
@@ -42,6 +43,7 @@ class WardCreate(WardBase):
 
 class WardUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
+    external_ward_id: Optional[str] = Field(None, max_length=100)
     ward_type: Optional[WardTypeEnum] = None
     department: Optional[str] = Field(None, min_length=1, max_length=255)
     floor: Optional[Union[str, int]] = Field(None)

@@ -328,18 +328,43 @@ class HistoricalService:
                 daily_groups[key] = []
             daily_groups[key].append(s)
 
+        # Pre-cache ward names in one query
+        ward_names = {w.id: w.name for w in db.query(Ward.id, Ward.name).all()}
+
+        # Bulk aggregate events by (ward_id, event_date, event_type) in a single query
+        ev_query = (
+            db.query(
+                OccupancyEvent.ward_id,
+                cast(OccupancyEvent.event_time, Date).label("ev_date"),
+                OccupancyEvent.event_type,
+                func.count(OccupancyEvent.id).label("cnt")
+            )
+            .group_by(OccupancyEvent.ward_id, cast(OccupancyEvent.event_time, Date), OccupancyEvent.event_type)
+        )
+        if hospital_id is not None:
+            ev_query = ev_query.filter(OccupancyEvent.hospital_id == hospital_id)
+        if ward_id is not None:
+            ev_query = ev_query.filter(OccupancyEvent.ward_id == ward_id)
+        if st_d:
+            ev_query = ev_query.filter(cast(OccupancyEvent.event_time, Date) >= st_d)
+        if end_d:
+            ev_query = ev_query.filter(cast(OccupancyEvent.event_time, Date) <= end_d)
+
+        event_counts = {
+            (r.ward_id, r.ev_date, r.event_type): r.cnt
+            for r in ev_query.all()
+        }
+
         dataset_items = []
         for (h_id, w_id, d), snaps in sorted(daily_groups.items(), key=lambda x: x[0][2]):
-            ward = db.query(Ward).filter(Ward.id == w_id).first()
-            w_name = ward.name if ward else f"Ward-{w_id}"
-
+            w_name = ward_names.get(w_id, f"Ward-{w_id}")
             avg_occ = sum(s.occupancy_percentage for s in snaps) / len(snaps)
             latest_snap = snaps[-1]
 
-            adm = db.query(OccupancyEvent).filter(OccupancyEvent.ward_id == w_id, OccupancyEvent.event_type == "ADMISSION", cast(OccupancyEvent.event_time, Date) == d).count()
-            dis = db.query(OccupancyEvent).filter(OccupancyEvent.ward_id == w_id, OccupancyEvent.event_type == "DISCHARGE", cast(OccupancyEvent.event_time, Date) == d).count()
-            t_in = db.query(OccupancyEvent).filter(OccupancyEvent.ward_id == w_id, OccupancyEvent.event_type == "TRANSFER_IN", cast(OccupancyEvent.event_time, Date) == d).count()
-            t_out = db.query(OccupancyEvent).filter(OccupancyEvent.ward_id == w_id, OccupancyEvent.event_type == "TRANSFER_OUT", cast(OccupancyEvent.event_time, Date) == d).count()
+            adm = event_counts.get((w_id, d, "ADMISSION"), 0)
+            dis = event_counts.get((w_id, d, "DISCHARGE"), 0)
+            t_in = event_counts.get((w_id, d, "TRANSFER_IN"), 0)
+            t_out = event_counts.get((w_id, d, "TRANSFER_OUT"), 0)
 
             dataset_items.append({
                 "date": d.isoformat(),

@@ -9,8 +9,10 @@ from datetime import datetime
 from math import ceil
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
+
+from app.services.synthea_import_service import SyntheaImportService
 
 from app.api.deps import get_current_active_user, require_roles
 from app.core.config import settings
@@ -213,3 +215,74 @@ def simulate_event(
 
     result = EventProcessor.process_event(db, event_payload)
     return result
+
+
+# ── POST /import/synthea ────────────────────────────────────────────────────
+
+@router.post(
+    "/import/synthea",
+    summary="Ingest Synthea dataset into hospital capacity snapshots",
+    description=(
+        "Processes real-world Synthea EHR dataset (encounters & organizations) "
+        "and generates continuous daily bed occupancy snapshots for forecasting."
+    ),
+)
+def import_synthea(
+    hospital_id: Optional[int] = Query(None, description="Target hospital ID (SUPER_ADMIN only, or leave empty to auto-configure)"),
+    start_year: int = Query(2018, ge=1990, le=2025),
+    end_year: int = Query(2020, ge=1990, le=2025),
+    create_events: bool = Query(True, description="Whether to also log admission/discharge OccupancyEvents"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(ADMIN_ROLES)),
+):
+    target_id = _resolve_hospital_id(current_user, hospital_id)
+    try:
+        result = SyntheaImportService.import_encounters(
+            db=db,
+            target_hospital_id=target_id,
+            start_year=start_year,
+            end_year=end_year,
+            create_occupancy_events=create_events,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Synthea import failed: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+# ── POST /import/csv ────────────────────────────────────────────────────────
+
+@router.post(
+    "/import/csv",
+    summary="Upload custom CSV time-series for bed occupancy snapshots",
+    description="Upload a CSV with columns (date/snapshot_time, occupied_beds, total_beds) to feed forecasting.",
+)
+async def import_csv_snapshots(
+    file: UploadFile = File(...),
+    hospital_id: int = Form(...),
+    ward_id: int = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(ADMIN_ROLES)),
+):
+    if current_user.role != UserRole.SUPER_ADMIN.value and current_user.hospital_id != hospital_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only import snapshots for your assigned hospital",
+        )
+
+    try:
+        content_bytes = await file.read()
+        file_text = content_bytes.decode("utf-8")
+        result = SyntheaImportService.import_custom_csv_snapshots(
+            db=db,
+            file_content=file_text,
+            hospital_id=hospital_id,
+            ward_id=ward_id,
+        )
+        return result
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="CSV file must be UTF-8 encoded")
+    except Exception as e:
+        logger.error(f"CSV import error: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+

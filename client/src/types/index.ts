@@ -552,3 +552,57 @@ export interface AdmissionListResponse {
   pages: number;
 }
 
+export type PatientTransferStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED';
+
+export interface PatientTransfer {
+  id: number;
+  hospital_id: number;
+  patient_id: number;
+  admission_id: number;
+  source_ward_id: number;
+  destination_ward_id: number;
+  source_bed_id: number;
+  destination_bed_id: number;
+  reason?: string | null;
+  rejection_reason?: string | null;
+  status: PatientTransferStatus;
+  requested_by?: number | null;
+  approved_by?: number | null;
+  rejected_by?: number | null;
+  completed_by?: number | null;
+  requested_at: string;
+  approved_at?: string | null;
+  rejected_at?: string | null;
+  completed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+
+  patient_name?: string | null;
+  patient_identifier?: string | null;
+  source_ward_name?: string | null;
+  destination_ward_name?: string | null;
+  source_bed_number?: string | null;
+  destination_bed_number?: string | null;
+  requested_by_name?: string | null;
+  approved_by_name?: string | null;
+  rejected_by_name?: string | null;
+  completed_by_name?: string | null;
+}
+
+export interface PatientTransferCreateInput {
+  patient_id: number;
+  destination_ward_id: number;
+  destination_bed_id: number;
+  reason?: string;
+  hospital_id?: number;
+}
+
+export interface PatientTransferListResponse {
+  items: PatientTransfer[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+
+

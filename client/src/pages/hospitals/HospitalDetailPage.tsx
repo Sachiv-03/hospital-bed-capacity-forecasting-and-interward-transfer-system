@@ -1,19 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
 import { AxiosError } from 'axios';
-import { Hospital } from '../../types';
-import { hospitalService } from '../../services/hospitalService';
 import {
-  Building,
-  ArrowLeft,
-  MapPin,
-  CheckCircle2,
   AlertCircle,
+  ArrowLeft,
+  Building,
   Building2,
   Layers,
-  Calendar,
+  MapPin,
   ShieldCheck,
 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { hospitalService } from '../../services/hospitalService';
+import { Hospital } from '../../types';
 
 export const HospitalDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -33,7 +31,9 @@ export const HospitalDetailPage: React.FC = () => {
         setLoading(false);
       })
       .catch((err: unknown) => {
-        const msg = (err as AxiosError<{ detail?: string }>).response?.data?.detail || 'Failed to fetch hospital details.';
+        const msg =
+          (err as AxiosError<{ detail?: string }>).response?.data?.detail ||
+          'Failed to fetch hospital details.';
         setError(msg);
         setLoading(false);
       });
@@ -53,7 +53,9 @@ export const HospitalDetailPage: React.FC = () => {
       <div className="p-12 text-center space-y-4">
         <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
         <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">Hospital Not Found</h2>
-        <p className="text-sm text-slate-500">{error || 'The requested hospital facility does not exist.'}</p>
+        <p className="text-sm text-slate-500">
+          {error || 'The requested hospital facility does not exist.'}
+        </p>
         <button
           onClick={() => navigate('/hospitals')}
           className="px-4 py-2 text-xs font-bold text-sky-600 bg-sky-50 dark:bg-sky-950 rounded-xl border border-sky-200"
@@ -85,14 +87,18 @@ export const HospitalDetailPage: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">{hospital.name}</h1>
+              <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">
+                {hospital.name}
+              </h1>
               <span className="px-2.5 py-0.5 rounded bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 font-mono text-xs font-bold border border-sky-200 dark:border-sky-800">
                 {hospital.code}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5" />
-              {[hospital.address, hospital.city, hospital.state, hospital.country].filter(Boolean).join(', ') || 'Address not specified'}
+              {[hospital.address, hospital.city, hospital.state, hospital.country]
+                .filter(Boolean)
+                .join(', ') || 'Address not specified'}
             </p>
           </div>
         </div>
@@ -114,35 +120,49 @@ export const HospitalDetailPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Wards</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Total Wards
+            </span>
             <Building2 className="w-5 h-5 text-sky-500" />
           </div>
-          <div className="mt-3 text-3xl font-black text-slate-900 dark:text-white">{hospital.ward_count ?? 0}</div>
+          <div className="mt-3 text-3xl font-black text-slate-900 dark:text-white">
+            {hospital.ward_count ?? 0}
+          </div>
           <p className="text-xs text-slate-500 mt-1">Configured Wards</p>
         </div>
 
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Capacity</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Total Capacity
+            </span>
             <Layers className="w-5 h-5 text-indigo-500" />
           </div>
-          <div className="mt-3 text-3xl font-black text-slate-900 dark:text-white">{hospital.total_capacity ?? 0}</div>
+          <div className="mt-3 text-3xl font-black text-slate-900 dark:text-white">
+            {hospital.total_capacity ?? 0}
+          </div>
           <p className="text-xs text-slate-500 mt-1">Total Active Bed Capacity</p>
         </div>
 
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Isolation Security</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Isolation Security
+            </span>
             <ShieldCheck className="w-5 h-5 text-emerald-500" />
           </div>
-          <div className="mt-3 text-lg font-bold text-emerald-600 dark:text-emerald-400">Enforced</div>
+          <div className="mt-3 text-lg font-bold text-emerald-600 dark:text-emerald-400">
+            Enforced
+          </div>
           <p className="text-xs text-slate-500 mt-1">FastAPI DB Filter Active</p>
         </div>
       </div>
 
       {/* System Information Card */}
       <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Facility Details</h3>
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+          Facility Details
+        </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
           <div>
             <span className="text-slate-400">Facility ID:</span>
@@ -150,7 +170,9 @@ export const HospitalDetailPage: React.FC = () => {
           </div>
           <div>
             <span className="text-slate-400">Hospital Code:</span>
-            <span className="font-bold text-slate-800 dark:text-slate-200 ml-2">{hospital.code}</span>
+            <span className="font-bold text-slate-800 dark:text-slate-200 ml-2">
+              {hospital.code}
+            </span>
           </div>
           <div>
             <span className="text-slate-400">Created At:</span>
