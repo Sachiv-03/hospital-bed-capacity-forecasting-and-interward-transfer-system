@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, ShieldCheck, Check, Ban, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Plus, Trash2, ShieldCheck } from 'lucide-react';
 import { WardTransferRule, UserRole, WardType } from '../../types';
 import { transferService } from '../../services/transferService';
 import { cn } from '../../utils/cn';
@@ -43,22 +43,23 @@ export const TransferRulesModal: React.FC<TransferRulesModalProps> = ({
 
   const isAdmin = ['super_admin', 'admin'].includes(userRole || '');
 
-  useEffect(() => {
-    fetchRules();
-  }, [hospitalId]);
-
-  const fetchRules = async () => {
+  const fetchRules = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await transferService.getRules(hospitalId);
       setRules(data);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to fetch transfer rules.');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to fetch transfer rules.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [hospitalId]);
+
+  useEffect(() => {
+    fetchRules();
+  }, [fetchRules]);
 
   const handleCreateRule = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,8 +79,9 @@ export const TransferRulesModal: React.FC<TransferRulesModalProps> = ({
       setShowAddForm(false);
       setReason('');
       fetchRules();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create rule.');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to create rule.';
+      setError(msg);
     }
   };
 
@@ -88,7 +90,7 @@ export const TransferRulesModal: React.FC<TransferRulesModalProps> = ({
     try {
       await transferService.updateRule(rule.id, { active: !rule.active });
       fetchRules();
-    } catch (err: any) {
+    } catch {
       setError('Failed to update rule status.');
     }
   };
@@ -99,7 +101,7 @@ export const TransferRulesModal: React.FC<TransferRulesModalProps> = ({
     try {
       await transferService.deleteRule(id);
       fetchRules();
-    } catch (err: any) {
+    } catch {
       setError('Failed to delete rule.');
     }
   };
@@ -217,6 +219,34 @@ export const TransferRulesModal: React.FC<TransferRulesModalProps> = ({
                     onChange={(e) => setMaxOccupancy(Number(e.target.value))}
                     min={50}
                     max={100}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 mb-1 font-medium">
+                    Priority Level:
+                  </label>
+                  <input
+                    type="number"
+                    value={priority}
+                    onChange={(e) => setPriority(Number(e.target.value))}
+                    min={1}
+                    max={10}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 mb-1 font-medium">
+                    Min Beds Buffer:
+                  </label>
+                  <input
+                    type="number"
+                    value={minBeds}
+                    onChange={(e) => setMinBeds(Number(e.target.value))}
+                    min={0}
+                    max={50}
                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
                   />
                 </div>

@@ -7,7 +7,32 @@ interface Props {
 }
 
 export const ForecastWarningBanner: React.FC<Props> = ({ forecastData }) => {
-  if (!forecastData || forecastData.status === 'INSUFFICIENT_DATA') return null;
+  if (!forecastData) return null;
+
+  if (forecastData.status === 'INSUFFICIENT_DATA') {
+    return (
+      <div className="rounded-xl p-4 mb-6 border shadow-xs bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200">
+        <div className="flex items-start gap-3">
+          <div className="p-2 rounded-lg bg-white/50 dark:bg-slate-900/50 shrink-0">
+            <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-extrabold uppercase tracking-wider">
+              Insufficient Historical Data for Forecasting
+            </h4>
+            <p className="text-sm font-medium mt-1">
+              {forecastData.message || `Ward ${forecastData.ward_name} has insufficient historical daily observations for reliable SARIMA forecasting.`}
+            </p>
+            <div className="mt-2 flex items-center gap-3 text-xs font-semibold opacity-90">
+              <span>Required: {forecastData.required_observations ?? 7} daily observations</span>
+              <span>&bull;</span>
+              <span>Available: {forecastData.available_observations ?? 0} daily observations</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const maxRisk = forecastData.max_risk_level;
   if (maxRisk !== 'HIGH' && maxRisk !== 'CRITICAL') return null;

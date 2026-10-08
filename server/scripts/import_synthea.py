@@ -11,6 +11,7 @@ import argparse
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.database.session import SessionLocal
+from app.models.hospital import Hospital
 from app.services.synthea_import_service import SyntheaImportService
 
 
@@ -21,6 +22,9 @@ def main():
     parser.add_argument("--start-year", type=int, default=2018, help="Start year for encounter filtering")
     parser.add_argument("--end-year", type=int, default=2020, help="End year for encounter filtering")
 
+    parser.add_argument("--import-patients", action="store_true", default=True, help="Import Synthea patients from patients.csv")
+    parser.add_argument("--limit-patients", type=int, default=50, help="Max Synthea patients to import")
+
     args = parser.parse_args()
 
     db = SessionLocal()
@@ -30,14 +34,20 @@ def main():
         print("=" * 60)
 
         # 1. Organizations & Wards
-        print(f"\n[1/2] Checking Synthea Organizations & Wards (limit={args.limit_orgs})...")
+        print(f"\n[1/3] Checking Synthea Organizations & Wards (limit={args.limit_orgs})...")
         hospitals = SyntheaImportService.import_organizations(db, limit=args.limit_orgs)
         for h in hospitals:
             print(f"  * Hospital: {h.name} (ID: {h.id}, Code: {h.code}, ExtID: {h.external_hospital_id})")
 
-        # 2. Encounters & Daily Snapshots
+        # Target Hospital setup
         target_id = args.hospital_id or (hospitals[0].id if hospitals else None)
-        print(f"\n[2/2] Ingesting Inpatient & Emergency Encounters into Hospital ID {target_id}...")
+        target_hospital = db.query(Hospital).filter(Hospital.id == target_id).first()
+        if target_hospital:
+            print(f"  * Ensuring wards and beds exist for Target Hospital: {target_hospital.name} (ID: {target_hospital.id})...")
+            SyntheaImportService.ensure_hospital_wards_and_beds(db, target_hospital)
+
+        # 2. Encounters & Daily Snapshots
+        print(f"\n[2/3] Ingesting Inpatient & Emergency Encounters into Hospital ID {target_id}...")
         print(f"  * Year filter: {args.start_year} to {args.end_year}")
 
         result = SyntheaImportService.import_encounters(
@@ -48,6 +58,17 @@ def main():
             create_occupancy_events=True,
         )
 
+        # 3. Patients & Sample Admissions
+        patient_res = None
+        if args.import_patients and target_id:
+            print(f"\n[3/3] Ingesting Synthea Patients into Hospital ID {target_id} (limit={args.limit_patients})...")
+            patient_res = SyntheaImportService.import_patients(
+                db=db,
+                target_hospital_id=target_id,
+                limit=args.limit_patients,
+                create_sample_admissions=True,
+            )
+
         print("\n" + "=" * 60)
         print("INGESTION SUMMARY:")
         print("=" * 60)
@@ -57,6 +78,9 @@ def main():
         print(f"  Snapshots Created:    {result['snapshots_created']}")
         print(f"  Snapshots Updated:    {result['snapshots_updated']}")
         print(f"  Events Logged:        {result['events_created']}")
+        if patient_res:
+            print(f"  Patients Ingested:    {patient_res['patients_created']}")
+            print(f"  Active Admissions:    {patient_res['admissions_created']}")
         print(f"  Data Source Tag:      {result['data_source']}")
         print("  Configured Wards:")
         for w in result["wards_configured"]:

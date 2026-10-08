@@ -21,7 +21,6 @@ import {
   UserPlus,
   AlertCircle,
   X,
-  Building,
 } from 'lucide-react';
 
 const getApiErrorMessage = (err: unknown, fallback: string): string => {

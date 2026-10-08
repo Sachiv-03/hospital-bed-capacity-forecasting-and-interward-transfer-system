@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle2, ShieldAlert, Zap } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { CapacityAlert } from '../types';
 import { getCapacityAlerts, resolveCapacityAlert } from '../services/ingestionService';
 
@@ -11,7 +11,7 @@ export const CapacityAlertsSection: React.FC<Props> = ({ hospitalId }) => {
   const [alerts, setAlerts] = useState<CapacityAlert[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const fetchAlerts = async () => {
+  const fetchAlerts = useCallback(async () => {
     setLoading(true);
     try {
       const res = await getCapacityAlerts({ hospital_id: hospitalId, status: 'ACTIVE' });
@@ -21,7 +21,7 @@ export const CapacityAlertsSection: React.FC<Props> = ({ hospitalId }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [hospitalId]);
 
   const handleResolve = async (alertId: number) => {
     try {
@@ -36,7 +36,7 @@ export const CapacityAlertsSection: React.FC<Props> = ({ hospitalId }) => {
     fetchAlerts();
     const timer = setInterval(fetchAlerts, 20_000);
     return () => clearInterval(timer);
-  }, [hospitalId]);
+  }, [fetchAlerts]);
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">

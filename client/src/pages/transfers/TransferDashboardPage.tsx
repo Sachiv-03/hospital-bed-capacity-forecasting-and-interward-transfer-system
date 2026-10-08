@@ -208,6 +208,15 @@ export const TransferDashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Pressure Alert from stats */}
+      {stats && (stats.critical_pressure_wards > 0 || stats.high_pressure_wards > 0) && (
+        <div className="px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200">
+          <span className="font-medium">
+            Active ward capacity pressure detected: <strong>{stats.critical_pressure_wards}</strong> critical, <strong>{stats.high_pressure_wards}</strong> high pressure wards ({stats.active_recommendations} recommendations active).
+          </span>
+        </div>
+      )}
+
       {/* Overview Metric Stats Bar */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">

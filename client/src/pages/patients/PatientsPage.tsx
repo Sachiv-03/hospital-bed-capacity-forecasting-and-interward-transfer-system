@@ -15,13 +15,11 @@ import {
   Activity,
   CheckCircle2,
   AlertCircle,
-  ChevronRight,
   UserCheck,
   UserX,
   X,
   Phone,
   Mail,
-  Building,
 } from 'lucide-react';
 
 const getApiErrorMessage = (err: unknown, fallback: string): string => {
@@ -389,6 +387,32 @@ export const PatientsPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+              <span className="text-xs text-slate-500">
+                Page <span className="font-semibold text-slate-700 dark:text-slate-300">{page}</span> of{' '}
+                <span className="font-semibold text-slate-700 dark:text-slate-300">{totalPages}</span> ({total} patients)
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={page <= 1}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={page >= totalPages}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

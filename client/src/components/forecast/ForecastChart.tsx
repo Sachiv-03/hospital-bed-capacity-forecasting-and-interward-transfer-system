@@ -51,8 +51,21 @@ export const ForecastChart: React.FC<Props> = ({
     );
   }
 
+interface ChartDataPoint {
+  date: string;
+  dateLabel: string;
+  actualOccupancy: number | null;
+  forecastOccupancy: number | null;
+  lowerBound: number | null;
+  upperBound: number | null;
+  confidenceRange?: [number, number] | null;
+  riskLevel?: string;
+  predictedBeds?: number;
+  type: 'PAST' | 'TODAY' | 'FUTURE';
+}
+
   // Combine past historical data + future forecast data for continuous line plotting
-  const combinedChartData: any[] = [];
+  const combinedChartData: ChartDataPoint[] = [];
 
   // Add historical points (PAST)
   historicalData.forEach((item) => {
@@ -107,9 +120,6 @@ export const ForecastChart: React.FC<Props> = ({
       type: 'FUTURE',
     });
   });
-
-  const todayIndex = combinedChartData.findIndex((x) => x.type === 'TODAY' || x.actualOccupancy !== null);
-  const todayLabel = todayIndex >= 0 ? combinedChartData[todayIndex].dateLabel : 'Today';
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
@@ -170,7 +180,7 @@ export const ForecastChart: React.FC<Props> = ({
                 color: '#fff',
                 fontSize: '12px',
               }}
-              formatter={(value: any, name: string) => {
+              formatter={(value: unknown, name: string) => {
                 if (Array.isArray(value)) {
                   return [`${value[0]}% - ${value[1]}%`, '95% Confidence Bounds'];
                 }

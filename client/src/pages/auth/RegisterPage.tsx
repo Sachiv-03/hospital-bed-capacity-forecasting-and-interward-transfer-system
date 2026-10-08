@@ -34,9 +34,9 @@ export const RegisterPage: React.FC = () => {
     try {
       await register(fullName, email, password, role);
       navigate('/', { replace: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Registration error:', err);
-      const msg = err.response?.data?.detail || 'Registration failed. Please verify user details.';
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Registration failed. Please verify user details.';
       setError(msg);
     } finally {
       setLoading(false);

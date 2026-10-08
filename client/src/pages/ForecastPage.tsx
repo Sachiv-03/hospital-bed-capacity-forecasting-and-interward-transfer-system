@@ -8,7 +8,31 @@ import { ForecastChart } from '../components/forecast/ForecastChart';
 import { ForecastWarningBanner } from '../components/forecast/ForecastWarningBanner';
 import { ModelPerformanceCard } from '../components/forecast/ModelPerformanceCard';
 import { HospitalForecastOverview } from '../components/forecast/HospitalForecastOverview';
-import { TrendingUp, RefreshCw, Cpu, CheckCircle2, AlertCircle, Play } from 'lucide-react';
+import { TrendingUp, RefreshCw, Cpu, CheckCircle2, AlertCircle, Play, Database, Calendar } from 'lucide-react';
+import { getDataQualityReport } from '../services/ingestionService';
+
+interface HistoricalDataQualityReport {
+  total_observations?: number;
+  total_snapshots?: number;
+  data_frequency?: string;
+  earliest_observation_date?: string;
+  latest_observation_date?: string;
+  health_score?: number;
+  missing_dates?: number;
+}
+
+const extractErrorMessage = (err: unknown, defaultMessage: string): string => {
+  if (typeof err === 'object' && err !== null && 'response' in err) {
+    const response = (err as { response?: { data?: { detail?: string } } }).response;
+    if (response?.data?.detail) {
+      return response.data.detail;
+    }
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return defaultMessage;
+};
 
 export const ForecastPage: React.FC = () => {
   const { user } = useAuth();
@@ -20,19 +44,24 @@ export const ForecastPage: React.FC = () => {
   const [horizon, setHorizon] = useState<number>(7);
 
   const [forecastData, setForecastData] = useState<WardForecastResponse | null>(null);
+  const [qualityReport, setQualityReport] = useState<HistoricalDataQualityReport | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Load Wards List
+  // Load Wards List and Quality Report
+  useEffect(() => {
+    getDataQualityReport(hospitalId)
+      .then(setQualityReport)
+      .catch((err) => console.error('Failed to load data quality report:', err));
+  }, [hospitalId]);
+
   useEffect(() => {
     getWards({ limit: 100 })
       .then((res) => {
         setWards(res.items);
-        if (res.items.length > 0 && !selectedWardId) {
-          setSelectedWardId(res.items[0].id);
-        }
+        setSelectedWardId((prevId) => prevId ?? (res.items.length > 0 ? res.items[0].id : null));
       })
       .catch((err) => console.error('Failed to load wards for forecasting:', err));
   }, []);
@@ -45,9 +74,9 @@ export const ForecastPage: React.FC = () => {
     try {
       const res = await forecastService.getWardForecast(selectedWardId, horizon);
       setForecastData(res);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to fetch forecast:', err);
-      setError(err?.response?.data?.detail || 'Failed to load bed capacity forecast.');
+      setError(extractErrorMessage(err, 'Failed to load bed capacity forecast.'));
     } finally {
       setLoading(false);
     }
@@ -65,8 +94,8 @@ export const ForecastPage: React.FC = () => {
       setToastMessage(`Forecast pipeline executed successfully! (${res.forecasts_generated} forecasts generated).`);
       setTimeout(() => setToastMessage(null), 4000);
       fetchForecast();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Failed to run manual forecast generation.');
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, 'Failed to run manual forecast generation.'));
     } finally {
       setGenerating(false);
     }
@@ -81,6 +110,22 @@ export const ForecastPage: React.FC = () => {
             <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span className="text-sm font-semibold">{toastMessage}</span>
           </div>
+        </div>
+      )}
+
+      {/* Error Alert Banner */}
+      {error && (
+        <div className="p-4 rounded-xl shadow-lg border bg-rose-50 dark:bg-rose-950/90 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+            <span className="text-sm font-semibold">{error}</span>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="text-xs font-bold underline hover:opacity-80 ml-3 shrink-0"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -164,6 +209,40 @@ export const ForecastPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Historical Data Quality & Provenance Banner */}
+      {qualityReport && (
+        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs flex flex-wrap items-center justify-between gap-3 text-slate-600 dark:text-slate-300">
+          <div className="flex items-center gap-2">
+            <Database className="w-4 h-4 text-sky-500" />
+            <span className="font-bold text-slate-800 dark:text-slate-100">Historical Data Coverage:</span>
+            <span>
+              {qualityReport.total_observations ?? qualityReport.total_snapshots ?? 0} daily records ({qualityReport.data_frequency || 'DAILY'})
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-purple-500" />
+            <span className="font-bold text-slate-800 dark:text-slate-100">Date Range:</span>
+            <span>
+              {qualityReport.earliest_observation_date ? `${qualityReport.earliest_observation_date} to ${qualityReport.latest_observation_date}` : 'Continuous'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Health Score: {qualityReport.health_score ?? 100}%
+            </span>
+            {(qualityReport.missing_dates ?? 0) > 0 && (
+              <span className="inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-400">
+                <AlertCircle className="w-3.5 h-3.5" />
+                {qualityReport.missing_dates} missing dates imputed
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Warning Banner */}
       <ForecastWarningBanner forecastData={forecastData} />

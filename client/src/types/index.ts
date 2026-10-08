@@ -1,3 +1,5 @@
+import { ReactNode } from 'react';
+
 export type UserRole = 'super_admin' | 'admin' | 'doctor' | 'nurse' | 'receptionist';
 
 export interface User {
@@ -332,7 +334,8 @@ export interface DataQualityReport {
 // ─── Stage 4 — Inter-Ward Transfer Decision Support System Types ────────────
 
 export type RecommendationPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-export type RecommendationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED' | 'STALE';
+export type RecommendationStatus =
+  'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED' | 'STALE';
 
 export interface WardTransferRule {
   id: number;
@@ -406,6 +409,7 @@ export interface TransferRecommendationDetail extends TransferRecommendation {
 }
 
 export interface TransferOverviewStats {
+  active_recommendations: ReactNode;
   hospital_id: number;
   critical_pressure_wards: number;
   high_pressure_wards: number;
@@ -552,7 +556,8 @@ export interface AdmissionListResponse {
   pages: number;
 }
 
-export type PatientTransferStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED';
+export type PatientTransferStatus =
+  'REQUESTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED';
 
 export interface PatientTransfer {
   id: number;
@@ -604,5 +609,3 @@ export interface PatientTransferListResponse {
   limit: number;
   pages: number;
 }
-
-

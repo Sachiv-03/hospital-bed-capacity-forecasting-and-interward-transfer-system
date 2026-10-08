@@ -122,6 +122,18 @@ class DataQualityReportResponse(BaseModel):
     missing_data_count: int
     last_successful_snapshot: Optional[str] = None
     health_score: float = 100.0
+    # Phase 8 Daily Historical Validation Metrics
+    total_observations: Optional[int] = None
+    valid_observations: Optional[int] = None
+    duplicate_observations: Optional[int] = None
+    missing_dates: Optional[int] = None
+    invalid_observations: Optional[int] = None
+    conflicting_observations: Optional[int] = 0
+    number_of_hospitals: Optional[int] = None
+    number_of_wards: Optional[int] = None
+    earliest_observation_date: Optional[str] = None
+    latest_observation_date: Optional[str] = None
+    data_frequency: Optional[str] = "DAILY"
 
 
 class ForecastingDatasetItem(BaseModel):

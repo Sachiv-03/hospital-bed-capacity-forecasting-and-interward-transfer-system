@@ -14,7 +14,6 @@ import {
   Edit,
   AlertCircle,
   Loader2,
-  TrendingUp,
 } from 'lucide-react';
 import { forecastService, WardForecastResponse } from '../../services/forecastService';
 import { ForecastSummaryCards } from '../../components/forecast/ForecastSummaryCards';

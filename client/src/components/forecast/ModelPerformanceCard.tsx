@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Cpu, CheckCircle2, Award, RefreshCw } from 'lucide-react';
 import { ModelPerformanceResponse, forecastService } from '../../services/forecastService';
 
@@ -11,24 +11,27 @@ export const ModelPerformanceCard: React.FC<Props> = ({ wardId }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchPerformance = async () => {
+  const fetchPerformance = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await forecastService.getModelPerformance(wardId);
       setPerformance(res);
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Failed to load model performance metrics');
+    } catch (err: unknown) {
+      const msg = typeof err === 'object' && err !== null && 'response' in err
+        ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+        : null;
+      setError(msg || 'Failed to load model performance metrics');
     } finally {
       setLoading(false);
     }
-  };
+  }, [wardId]);
 
   useEffect(() => {
     if (wardId) {
       fetchPerformance();
     }
-  }, [wardId]);
+  }, [wardId, fetchPerformance]);
 
   if (loading) {
     return (

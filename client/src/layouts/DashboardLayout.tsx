@@ -19,7 +19,6 @@ import {
   Activity,
   Menu,
   X,
-  ShieldCheck,
   Building,
 } from 'lucide-react';
 import { cn } from '../utils/cn';

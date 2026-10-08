@@ -7,12 +7,8 @@ import {
   UserPlus,
   User,
   Phone,
-  Mail,
-  MapPin,
-  Calendar,
   ShieldAlert,
   AlertCircle,
-  CheckCircle2,
 } from 'lucide-react';
 
 const getApiErrorMessage = (err: unknown, fallback: string): string => {

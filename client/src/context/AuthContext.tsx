@@ -135,10 +135,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    let parsedUser = null;
+    try {
+      const rawUser = localStorage.getItem('user');
+      if (rawUser) parsedUser = JSON.parse(rawUser);
+    } catch {
+      parsedUser = null;
+    }
+    const rawToken = localStorage.getItem('access_token');
+    return {
+      user: parsedUser,
+      tokens: rawToken
+        ? { access_token: rawToken, refresh_token: localStorage.getItem('refresh_token') || '', token_type: 'bearer' }
+        : null,
+      isAuthenticated: !!parsedUser && !!rawToken,
+      isLoading: false,
+      login: async () => {},
+      register: async () => {},
+      logout: () => {},
+      refreshUser: async () => {},
+    };
   }
   return context;
 };

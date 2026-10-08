@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Building2, Layers, AlertCircle, RefreshCw, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Building2, Layers, RefreshCw, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { HospitalForecastResponse, forecastService } from '../../services/forecastService';
 
@@ -13,24 +13,27 @@ export const HospitalForecastOverview: React.FC<Props> = ({ hospitalId }) => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const fetchHospitalForecast = async () => {
+  const fetchHospitalForecast = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await forecastService.getHospitalForecast(hospitalId, 7);
       setData(res);
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Failed to load hospital forecast overview');
+    } catch (err: unknown) {
+      const msg = typeof err === 'object' && err !== null && 'response' in err
+        ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+        : null;
+      setError(msg || 'Failed to load hospital forecast overview');
     } finally {
       setLoading(false);
     }
-  };
+  }, [hospitalId]);
 
   useEffect(() => {
     if (hospitalId) {
       fetchHospitalForecast();
     }
-  }, [hospitalId]);
+  }, [hospitalId, fetchHospitalForecast]);
 
   if (loading) {
     return (

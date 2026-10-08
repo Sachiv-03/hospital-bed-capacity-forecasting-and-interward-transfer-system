@@ -12,6 +12,7 @@ Features:
 6. High-performance batch/bulk processing with in-memory caching
 """
 import os
+import re
 import csv
 import logging
 from datetime import datetime, date, timedelta
@@ -23,6 +24,8 @@ from sqlalchemy import and_
 from app.models.hospital import Hospital, HospitalStatus
 from app.models.ward import Ward, WardType, WardStatus
 from app.models.bed import Bed, BedStatus
+from app.models.patient import Patient, PatientStatus
+from app.models.admission import Admission, AdmissionStatus
 from app.models.occupancy_snapshot import OccupancySnapshot
 from app.models.occupancy_event import OccupancyEvent, EventType, EventSource
 
@@ -217,11 +220,9 @@ class SyntheaImportService:
             bed_obj = db.query(Bed.id).filter(Bed.ward_id == w.id).first()
             ward_bed_ids[w.id] = bed_obj[0] if bed_obj else None
 
-        # Preload existing event IDs for deduplication in memory
+        # Preload existing event IDs globally for deduplication in memory
         existing_event_ids: Set[str] = set(
-            row[0] for row in db.query(OccupancyEvent.event_id).filter(
-                OccupancyEvent.hospital_id == primary_hospital.id
-            ).all()
+            row[0] for row in db.query(OccupancyEvent.event_id).all()
         )
 
         # Daily census tracking: (ward_id, date) -> count
@@ -292,7 +293,7 @@ class SyntheaImportService:
                     enc_id = row.get("Id", "")[:18]
                     bed_id = ward_bed_ids.get(assigned_ward.id)
 
-                    adm_event_id = f"SYN-ADM-{enc_id}"
+                    adm_event_id = f"SYN-H{primary_hospital.id}-ADM-{enc_id}"
                     if adm_event_id not in existing_event_ids:
                         events_to_insert.append(
                             OccupancyEvent(
@@ -308,7 +309,7 @@ class SyntheaImportService:
                         existing_event_ids.add(adm_event_id)
                         events_created += 1
 
-                    dis_event_id = f"SYN-DIS-{enc_id}"
+                    dis_event_id = f"SYN-H{primary_hospital.id}-DIS-{enc_id}"
                     if dis_event_id not in existing_event_ids:
                         events_to_insert.append(
                             OccupancyEvent(
@@ -499,4 +500,130 @@ class SyntheaImportService:
             "created": created_count,
             "updated": updated_count,
             "data_source": "CSV_IMPORT",
+        }
+
+    @classmethod
+    def import_patients(
+        cls,
+        db: Session,
+        target_hospital_id: int,
+        csv_path: Optional[str] = None,
+        limit: int = 50,
+        create_sample_admissions: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Ingests real Synthea patients from patients.csv into the specified hospital.
+        Optionally creates active admissions in available beds to populate the clinical registry.
+        """
+        path = csv_path or os.path.join(DEFAULT_DATASET_DIR, "patients.csv")
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"Patients CSV not found at: {path}")
+
+        hospital = db.query(Hospital).filter(Hospital.id == target_hospital_id).first()
+        if not hospital:
+            raise ValueError(f"Hospital with ID {target_hospital_id} does not exist.")
+
+        created_patients: List[Patient] = []
+        admissions_created = 0
+
+        with open(path, mode="r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            count = 0
+            for row in reader:
+                if count >= limit:
+                    break
+
+                raw_id = row.get("Id", "").strip()
+                raw_first = row.get("FIRST", "").strip()
+                raw_last = row.get("LAST", "").strip()
+                birthdate_str = row.get("BIRTHDATE", "").strip()
+
+                if not raw_id or not raw_first or not raw_last or not birthdate_str:
+                    continue
+
+                clean_first = re.sub(r"\d+", "", raw_first).strip()
+                clean_last = re.sub(r"\d+", "", raw_last).strip()
+                clean_ident = f"SYN-{raw_id[:8].upper()}"
+
+                existing = db.query(Patient).filter(
+                    Patient.hospital_id == target_hospital_id,
+                    (Patient.patient_identifier == clean_ident) | (Patient.patient_identifier == raw_id)
+                ).first()
+
+                if not existing:
+                    try:
+                        dob = datetime.strptime(birthdate_str, "%Y-%m-%d").date()
+                    except ValueError:
+                        continue
+
+                    gender_code = row.get("GENDER", "OTHER").upper()
+                    gender = "MALE" if gender_code == "M" else ("FEMALE" if gender_code == "F" else "OTHER")
+
+                    address_parts = [
+                        row.get("ADDRESS", "").strip(),
+                        row.get("CITY", "").strip(),
+                        row.get("STATE", "").strip(),
+                        row.get("ZIP", "").strip(),
+                    ]
+                    clean_address = ", ".join(p for p in address_parts if p)
+
+                    patient = Patient(
+                        hospital_id=target_hospital_id,
+                        patient_identifier=clean_ident,
+                        first_name=clean_first or raw_first,
+                        last_name=clean_last or raw_last,
+                        date_of_birth=dob,
+                        gender=gender,
+                        phone=f"555-01{count:02d}",
+                        email=f"{clean_first.lower().replace(' ', '')}.{clean_last.lower()}@example.org",
+                        address=clean_address or "Boston, Massachusetts",
+                        emergency_contact_name=f"Contact for {clean_first}",
+                        emergency_contact_phone=f"555-99{count:02d}",
+                        status=PatientStatus.ACTIVE.value,
+                    )
+                    db.add(patient)
+                    db.flush()
+                    created_patients.append(patient)
+                    count += 1
+
+        db.commit()
+
+        if create_sample_admissions:
+            available_beds = db.query(Bed).filter(
+                Bed.hospital_id == target_hospital_id,
+                Bed.status == BedStatus.AVAILABLE.value
+            ).limit(8).all()
+
+            patients_for_admission = db.query(Patient).filter(
+                Patient.hospital_id == target_hospital_id
+            ).limit(len(available_beds)).all()
+
+            for idx, (p, bed) in enumerate(zip(patients_for_admission, available_beds)):
+                active_adm = db.query(Admission).filter(
+                    Admission.patient_id == p.id,
+                    Admission.status == AdmissionStatus.ADMITTED.value
+                ).first()
+
+                if not active_adm:
+                    adm = Admission(
+                        hospital_id=target_hospital_id,
+                        patient_id=p.id,
+                        ward_id=bed.ward_id,
+                        bed_id=bed.id,
+                        admission_number=f"ADM-SYN-{datetime.utcnow().strftime('%Y%m%d')}-{bed.id:03d}",
+                        admission_date=datetime.utcnow() - timedelta(days=idx + 1),
+                        status=AdmissionStatus.ADMITTED.value,
+                        admission_reason="Inpatient medical evaluation and capacity telemetry observation",
+                    )
+                    db.add(adm)
+                    bed.status = BedStatus.OCCUPIED.value
+                    admissions_created += 1
+
+            db.commit()
+
+        return {
+            "status": "SUCCESS",
+            "hospital_id": target_hospital_id,
+            "patients_created": len(created_patients),
+            "admissions_created": admissions_created,
         }

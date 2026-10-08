@@ -3,7 +3,7 @@ from math import ceil
 from typing import List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy import or_, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.patient import Patient, PatientStatus
 from app.models.admission import Admission, AdmissionStatus
@@ -178,7 +178,58 @@ class PatientService:
         total = query.count()
         patients = query.order_by(Patient.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
 
-        items = [PatientService.get_patient_response(db, p.id, hospital_id) for p in patients]
+        p_ids = [p.id for p in patients]
+        admissions_map = {}
+        if p_ids:
+            active_adms = db.query(Admission).options(
+                joinedload(Admission.ward),
+                joinedload(Admission.bed)
+            ).filter(
+                Admission.patient_id.in_(p_ids),
+                Admission.status == AdmissionStatus.ADMITTED.value
+            ).all()
+            for adm in active_adms:
+                admissions_map[adm.patient_id] = adm
+
+        hospital = db.query(Hospital.name).filter(Hospital.id == hospital_id).first()
+        hosp_name = hospital[0] if hospital else None
+
+        items = []
+        for p in patients:
+            active_adm = admissions_map.get(p.id)
+            current_adm_info = None
+            if active_adm:
+                current_adm_info = CurrentAdmissionInfo(
+                    admission_id=active_adm.id,
+                    admission_number=active_adm.admission_number,
+                    admission_date=active_adm.admission_date,
+                    ward_id=active_adm.ward_id,
+                    ward_name=active_adm.ward.name if active_adm.ward else "",
+                    bed_id=active_adm.bed_id,
+                    bed_number=active_adm.bed.bed_number if active_adm.bed else "",
+                    status=active_adm.status
+                )
+            items.append(
+                PatientResponse(
+                    id=p.id,
+                    hospital_id=p.hospital_id,
+                    patient_identifier=p.patient_identifier,
+                    first_name=p.first_name,
+                    last_name=p.last_name,
+                    date_of_birth=p.date_of_birth,
+                    gender=p.gender,
+                    phone=p.phone,
+                    email=p.email,
+                    address=p.address,
+                    emergency_contact_name=p.emergency_contact_name,
+                    emergency_contact_phone=p.emergency_contact_phone,
+                    status=p.status,
+                    created_at=p.created_at,
+                    updated_at=p.updated_at,
+                    hospital_name=hosp_name,
+                    current_admission=current_adm_info
+                )
+            )
 
         return PatientListResponse(
             items=items,

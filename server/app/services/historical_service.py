@@ -280,14 +280,30 @@ class HistoricalService:
             flaws = invalid_snaps + duplicate_snaps + invalid_events
             health_score = max(0.0, round(100.0 - (flaws / total_snaps * 100.0), 2))
 
+        # Phase 8 Historical Daily Quality Metrics
+        from app.services.forecasting.historical_validation_service import HistoricalDataValidationService
+        daily_metrics = HistoricalDataValidationService.get_comprehensive_quality_report(db, hospital_id=hospital_id)
+
         return {
             "total_snapshots": total_snaps,
             "invalid_snapshots": invalid_snaps,
             "duplicate_snapshots": duplicate_snaps,
             "invalid_events": invalid_events,
-            "missing_data_count": 0,
+            "missing_data_count": daily_metrics.get("missing_dates", 0),
             "last_successful_snapshot": last_time_str,
             "health_score": health_score,
+            # Phase 8 fields
+            "total_observations": daily_metrics.get("total_observations", total_snaps),
+            "valid_observations": daily_metrics.get("valid_observations", max(0, total_snaps - invalid_snaps - duplicate_snaps)),
+            "duplicate_observations": daily_metrics.get("duplicate_observations", duplicate_snaps),
+            "missing_dates": daily_metrics.get("missing_dates", 0),
+            "invalid_observations": daily_metrics.get("invalid_observations", invalid_snaps),
+            "conflicting_observations": daily_metrics.get("conflicting_observations", 0),
+            "number_of_hospitals": daily_metrics.get("number_of_hospitals", 1),
+            "number_of_wards": daily_metrics.get("number_of_wards", 1),
+            "earliest_observation_date": daily_metrics.get("earliest_observation_date"),
+            "latest_observation_date": daily_metrics.get("latest_observation_date"),
+            "data_frequency": "DAILY",
         }
 
     @staticmethod

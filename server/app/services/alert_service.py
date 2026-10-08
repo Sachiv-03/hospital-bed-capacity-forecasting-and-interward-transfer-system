@@ -110,7 +110,8 @@ class AlertService:
             CapacityAlert.status == AlertStatus.ACTIVE.value,
         ).first()
 
-        if available_beds <= settings.ALERT_LOW_AVAILABILITY_THRESHOLD and total_beds > 0:
+        low_threshold = getattr(settings, "ALERT_LOW_AVAILABILITY_THRESHOLD", 2)
+        if available_beds <= low_threshold and total_beds > 0:
             msg = (
                 f"Low bed availability in {ward_name}: only {available_beds} bed(s) available."
             )
@@ -122,7 +123,7 @@ class AlertService:
                     severity=AlertSeverity.WARNING.value,
                     message=msg,
                     trigger_value=float(available_beds),
-                    threshold_value=float(settings.ALERT_LOW_AVAILABILITY_THRESHOLD),
+                    threshold_value=float(low_threshold),
                     status=AlertStatus.ACTIVE.value,
                 )
                 db.add(alert)

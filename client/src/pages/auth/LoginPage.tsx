@@ -8,7 +8,7 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = (location.state as any)?.from?.pathname || '/';
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
 
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -30,9 +30,9 @@ export const LoginPage: React.FC = () => {
     try {
       await login(email, password);
       navigate(from, { replace: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login failed:', err);
-      const msg = err.response?.data?.detail || 'Invalid email credentials or password.';
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Invalid email credentials or password.';
       setError(msg);
     } finally {
       setLoading(false);

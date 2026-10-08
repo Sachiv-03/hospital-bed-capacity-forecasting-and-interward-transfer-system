@@ -1,21 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   X,
-  ShieldAlert,
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
-  Info,
-  Clock,
   ThumbsUp,
   ThumbsDown,
-  Lock,
   Activity,
   FileText,
 } from 'lucide-react';
 import { TransferRecommendationDetail, UserRole } from '../../types';
 import { transferService } from '../../services/transferService';
-import { cn } from '../../utils/cn';
 
 interface TransferRecommendationDetailModalProps {
   recommendationId: number | null;
@@ -48,24 +43,25 @@ export const TransferRecommendationDetailModal: React.FC<TransferRecommendationD
 
   const canAction = ['super_admin', 'admin', 'doctor', 'nurse'].includes(userRole || '');
 
-  useEffect(() => {
-    if (!recommendationId) return;
-    fetchDetail();
-  }, [recommendationId]);
-
-  const fetchDetail = async () => {
+  const fetchDetail = useCallback(async () => {
     if (!recommendationId) return;
     setLoading(true);
     setError(null);
     try {
       const data = await transferService.getRecommendationDetail(recommendationId);
       setDetail(data);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load recommendation details.');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to load recommendation details.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [recommendationId]);
+
+  useEffect(() => {
+    if (!recommendationId) return;
+    fetchDetail();
+  }, [recommendationId, fetchDetail]);
 
   const handleApprove = async () => {
     if (!recommendationId) return;
@@ -76,8 +72,9 @@ export const TransferRecommendationDetailModal: React.FC<TransferRecommendationD
       setShowApproveConfirm(false);
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to approve recommendation.');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to approve recommendation.';
+      setError(msg);
     } finally {
       setApproving(false);
     }
@@ -102,8 +99,9 @@ export const TransferRecommendationDetailModal: React.FC<TransferRecommendationD
       setShowRejectModal(false);
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setRejectionError(err.response?.data?.detail || 'Failed to reject recommendation.');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to reject recommendation.';
+      setRejectionError(msg);
     } finally {
       setRejecting(false);
     }

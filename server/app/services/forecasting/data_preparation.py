@@ -85,6 +85,8 @@ class ForecastingDataPreparation:
                 "transfers_out": item.get("transfers_out", 0),
                 "day_of_week": d_obj.weekday(),
                 "is_weekend": 1 if d_obj.weekday() >= 5 else 0,
+                "is_imputed": False,
+                "imputation_method": "NONE",
             }
 
         sorted_dates = sorted(date_map.keys())
@@ -99,6 +101,9 @@ class ForecastingDataPreparation:
                 "dates": [],
                 "occupied_beds": [],
                 "occupancy_percentages": [],
+                "capacities": [],
+                "missing_dates": [],
+                "data_frequency": "DAILY",
             }
 
         # Fill missing daily dates from min_date to max_date
@@ -106,6 +111,7 @@ class ForecastingDataPreparation:
         max_date = sorted_dates[-1]
 
         full_series: List[Dict[str, Any]] = []
+        missing_dates: List[str] = []
         curr = min_date
         last_item = date_map[min_date]
 
@@ -114,6 +120,7 @@ class ForecastingDataPreparation:
                 item = date_map[curr]
                 last_item = item
             else:
+                missing_dates.append(curr.isoformat())
                 # Forward fill / interpolate missing date
                 item = {
                     "date": curr.isoformat(),
@@ -128,6 +135,8 @@ class ForecastingDataPreparation:
                     "day_of_week": curr.weekday(),
                     "is_weekend": 1 if curr.weekday() >= 5 else 0,
                     "interpolated": True,
+                    "is_imputed": True,
+                    "imputation_method": "FORWARD_FILL",
                 }
             full_series.append(item)
             curr += timedelta(days=1)
@@ -135,6 +144,7 @@ class ForecastingDataPreparation:
         dates_str = [x["date"] for x in full_series]
         occ_beds = [float(x["occupied_beds"]) for x in full_series]
         occ_pcts = [float(x["occupancy_percentage"]) for x in full_series]
+        cap_beds = [float(x["total_beds"]) for x in full_series]
 
         return {
             "ward_id": ward_id,
@@ -148,6 +158,9 @@ class ForecastingDataPreparation:
             "dates": dates_str,
             "occupied_beds": occ_beds,
             "occupancy_percentages": occ_pcts,
+            "capacities": cap_beds,
+            "missing_dates": missing_dates,
+            "data_frequency": "DAILY",
         }
 
     @staticmethod

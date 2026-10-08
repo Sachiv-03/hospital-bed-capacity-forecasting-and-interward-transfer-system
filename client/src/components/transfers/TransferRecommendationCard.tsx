@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   Clock,
   ShieldAlert,
-  Info,
   TrendingUp,
 } from 'lucide-react';
 import { TransferRecommendation } from '../../types';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layers, ArrowUpRight, ArrowDownRight, ArrowRightLeft } from 'lucide-react';
+import { Layers, ArrowUpRight, ArrowRightLeft } from 'lucide-react';
 import { DailySummary } from '../types';
 import { getWardDailySummary } from '../services/ingestionService';
 

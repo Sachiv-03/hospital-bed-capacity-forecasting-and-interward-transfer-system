@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, case
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -42,13 +42,24 @@ class HospitalService:
 
         hospitals = query.order_by(Hospital.id.asc()).offset(offset).limit(limit).all()
 
+        h_ids = [h.id for h in hospitals]
+        stats_by_hosp = {}
+        if h_ids:
+            for row in db.query(
+                Ward.hospital_id,
+                func.count(Ward.id),
+                func.coalesce(
+                    func.sum(
+                        case((Ward.status == WardStatus.ACTIVE.value, Ward.capacity), else_=0)
+                    ),
+                    0
+                )
+            ).filter(Ward.hospital_id.in_(h_ids)).group_by(Ward.hospital_id).all():
+                stats_by_hosp[row[0]] = (row[1], int(row[2]))
+
         items = []
         for h in hospitals:
-            ward_count = db.query(Ward).filter(Ward.hospital_id == h.id).count()
-            capacity_sum = db.query(func.sum(Ward.capacity)).filter(
-                Ward.hospital_id == h.id,
-                Ward.status == WardStatus.ACTIVE.value
-            ).scalar()
+            ward_count, total_capacity = stats_by_hosp.get(h.id, (0, 0))
             items.append({
                 "id": h.id,
                 "name": h.name,
@@ -61,7 +72,7 @@ class HospitalService:
                 "created_at": h.created_at,
                 "updated_at": h.updated_at,
                 "ward_count": ward_count,
-                "total_capacity": int(capacity_sum) if capacity_sum else 0,
+                "total_capacity": total_capacity,
             })
 
         return {

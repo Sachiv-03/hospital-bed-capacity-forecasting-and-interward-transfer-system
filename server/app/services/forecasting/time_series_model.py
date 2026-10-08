@@ -30,6 +30,7 @@ class TimeSeriesForecaster:
             return TimeSeriesForecaster._fallback_forecast(history, total_beds, horizon)
 
         try:
+            import warnings
             import numpy as np
             import pandas as pd
             from statsmodels.tsa.statespace.sarimax import SARIMAX
@@ -55,7 +56,9 @@ class TimeSeriesForecaster:
                 enforce_stationarity=False,
                 enforce_invertibility=False,
             )
-            res = model.fit(disp=False, maxiter=100)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                res = model.fit(disp=False, maxiter=100, warn_convergence=False)
 
             forecast_res = res.get_forecast(steps=horizon)
             mean_pred = forecast_res.predicted_mean.values

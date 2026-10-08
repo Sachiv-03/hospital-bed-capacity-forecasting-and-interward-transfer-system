@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRightLeft, ShieldAlert, ArrowRight, Activity } from 'lucide-react';
+import { ArrowRightLeft, ShieldAlert, ArrowRight } from 'lucide-react';
 import { TransferOverviewStats } from '../../types';
 import { transferService } from '../../services/transferService';
 
@@ -12,20 +12,20 @@ export const TransferPressureWidget: React.FC<TransferPressureWidgetProps> = ({ 
   const [stats, setStats] = useState<TransferOverviewStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  useEffect(() => {
-    fetchStats();
-  }, [hospitalId]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const data = await transferService.getOverviewStats(hospitalId);
       setStats(data);
-    } catch (err) {
+    } catch {
       // Silent error fallback
     } finally {
       setLoading(false);
     }
-  };
+  }, [hospitalId]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   if (loading || !stats) {
     return (

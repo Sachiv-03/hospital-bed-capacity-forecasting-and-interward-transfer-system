@@ -13,7 +13,6 @@ import { TransferPressureWidget } from '../components/dashboard/TransferPressure
 import {
   Activity,
   BedDouble,
-  Building2,
   TrendingUp,
   ArrowRightLeft,
   CheckCircle2,
