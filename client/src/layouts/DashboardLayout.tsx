@@ -20,8 +20,10 @@ import {
   Menu,
   X,
   Building,
+  ShieldAlert,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { getCapacityAlertSummary } from '../services/ingestionService';
 
 interface SidebarItemProps {
   name: string;
@@ -80,6 +82,21 @@ export const DashboardLayout: React.FC = () => {
     return localStorage.getItem('theme') === 'dark';
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const [unreadAlerts, setUnreadAlerts] = useState<number>(0);
+
+  useEffect(() => {
+    const fetchBadge = async () => {
+      try {
+        const summary = await getCapacityAlertSummary({ hospital_id: user?.hospital_id });
+        setUnreadAlerts(summary.unacknowledged_count || summary.total_active || 0);
+      } catch {
+        // Ignore background badge fetch errors
+      }
+    };
+    fetchBadge();
+    const timer = setInterval(fetchBadge, 30_000);
+    return () => clearInterval(timer);
+  }, [user?.hospital_id]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -105,6 +122,7 @@ export const DashboardLayout: React.FC = () => {
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     ...(isSuperAdmin ? [{ name: 'Hospitals', path: '/hospitals', icon: Building, badge: 'System' }] : []),
+    { name: 'Alerts', path: '/alerts', icon: ShieldAlert, badge: unreadAlerts > 0 ? String(unreadAlerts) : undefined },
     { name: 'Patients', path: '/patients', icon: Users },
     { name: 'Beds', path: '/beds', icon: BedDouble },
     { name: 'Wards', path: '/wards', icon: Building2 },
@@ -180,11 +198,18 @@ export const DashboardLayout: React.FC = () => {
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Notification Button */}
           <button
+            onClick={() => navigate('/alerts')}
             className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Notifications"
+            title={unreadAlerts > 0 ? `${unreadAlerts} active capacity alert(s)` : 'Capacity Alerts'}
           >
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-slate-900 animate-pulse" />
+            {unreadAlerts > 0 ? (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[1.125rem] h-4 px-1 flex items-center justify-center text-[10px] font-black rounded-full bg-rose-600 text-white ring-2 ring-white dark:ring-slate-900 animate-pulse">
+                {unreadAlerts}
+              </span>
+            ) : (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
+            )}
           </button>
 
           {/* Theme Toggle Button */}

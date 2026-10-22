@@ -8,6 +8,7 @@ import { ForecastChart } from '../components/forecast/ForecastChart';
 import { ForecastWarningBanner } from '../components/forecast/ForecastWarningBanner';
 import { ModelPerformanceCard } from '../components/forecast/ModelPerformanceCard';
 import { HospitalForecastOverview } from '../components/forecast/HospitalForecastOverview';
+import { CapacityAlertsSection } from '../components/CapacityAlertsSection';
 import { TrendingUp, RefreshCw, Cpu, CheckCircle2, AlertCircle, Play, Database, Calendar } from 'lucide-react';
 import { getDataQualityReport } from '../services/ingestionService';
 
@@ -256,6 +257,9 @@ export const ForecastPage: React.FC = () => {
         horizon={horizon}
         onHorizonChange={setHorizon}
       />
+
+      {/* Explainable AI Bed Capacity Alerts Section */}
+      <CapacityAlertsSection hospitalId={hospitalId} />
 
       {/* Model Performance Comparison Card */}
       {selectedWardId && <ModelPerformanceCard wardId={selectedWardId} />}

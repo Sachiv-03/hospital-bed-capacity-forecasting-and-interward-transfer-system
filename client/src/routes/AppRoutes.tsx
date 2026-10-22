@@ -10,6 +10,7 @@ import { WardDetailPage } from '../pages/wards/WardDetailPage';
 import { WardsPage } from '../pages/wards/WardsPage';
 import { BedsPage } from '../pages/beds/BedsPage';
 import { TransferDashboardPage } from '../pages/transfers/TransferDashboardPage';
+import { AlertsPage } from '../pages/AlertsPage';
 
 import { LoginPage } from '../pages/auth/LoginPage';
 
@@ -114,6 +115,15 @@ export const AppRoutes: React.FC = () => {
           element={
             <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse', 'receptionist']}>
               <WardDetailPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="alerts"
+          element={
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse', 'receptionist']}>
+              <AlertsPage />
             </RoleGuard>
           }
         />

@@ -76,13 +76,33 @@ export const getDataQualityReport = async (hospitalId?: number) => {
   return data;
 };
 
-export const getCapacityAlerts = async (params?: { hospital_id?: number; ward_id?: number; status?: string; severity?: string }) => {
+export const getCapacityAlerts = async (params?: { hospital_id?: number; ward_id?: number; status?: string; severity?: string; alert_type?: string }) => {
   const { data } = await apiClient.get('/alerts', { params });
+  return data;
+};
+
+export const getCapacityAlertSummary = async (params?: { hospital_id?: number }) => {
+  const { data } = await apiClient.get('/alerts/summary', { params });
+  return data;
+};
+
+export const getAlertDetail = async (alertId: number) => {
+  const { data } = await apiClient.get(`/alerts/${alertId}`);
+  return data;
+};
+
+export const acknowledgeCapacityAlert = async (alertId: number) => {
+  const { data } = await apiClient.post(`/alerts/${alertId}/acknowledge`);
   return data;
 };
 
 export const resolveCapacityAlert = async (alertId: number) => {
   const { data } = await apiClient.post(`/alerts/${alertId}/resolve`);
+  return data;
+};
+
+export const evaluateCapacityAlerts = async (params?: { hospital_id?: number; ward_id?: number; horizon?: number }) => {
+  const { data } = await apiClient.post('/alerts/evaluate', null, { params });
   return data;
 };
 

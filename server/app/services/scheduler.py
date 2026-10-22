@@ -48,8 +48,13 @@ class SnapshotScheduler:
                 try:
                     from app.services.forecasting.forecast_service import ForecastService
                     ForecastService.generate_all_forecasts(db=db, horizon=7)
+                    try:
+                        from app.services.explainable_alert_service import ExplainableAlertService
+                        ExplainableAlertService.evaluate_all_hospital_wards(db=db, horizon=settings.ALERT_FORECAST_HORIZON_DAYS)
+                    except Exception as ea:
+                        logger.error(f"Explainable alert evaluation scheduler notice: {ea}")
                     last_forecast_time = now
-                    logger.info("FORECAST SCHEDULER: Successfully generated 7-day capacity forecasts.")
+                    logger.info("FORECAST SCHEDULER: Successfully generated 7-day capacity forecasts and explainable alerts.")
                 except Exception as e:
                     logger.error(f"Forecast scheduler execution error: {e}")
                 finally:

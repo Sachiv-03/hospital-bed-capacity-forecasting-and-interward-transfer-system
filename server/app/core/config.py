@@ -22,12 +22,20 @@ class Settings(BaseSettings):
     SIMULATOR_INTERVAL_SECONDS: int = 10
     SIMULATOR_HOSPITAL_ID: int = 1
 
-    # Stage 2 — Automated Occupancy Snapshot & Capacity Alerts
+    # Stage 2 & Explainable AI Alerts Configuration
+    # NOTE: Configured thresholds are operational demonstration defaults and require approval
+    # by authorized hospital administrators before operational use.
     SNAPSHOT_ENABLED: bool = True
     SNAPSHOT_INTERVAL_SECONDS: int = 300
+    ALERT_MODERATE_THRESHOLD: float = 70.0
     ALERT_HIGH_THRESHOLD: float = 85.0
     ALERT_CRITICAL_THRESHOLD: float = 95.0
     ALERT_LOW_AVAILABILITY_THRESHOLD: int = 2
+    ALERT_RAPID_INCREASE_THRESHOLD: float = 15.0  # Percentage point increase over recent window
+    ALERT_RAPID_INCREASE_DAYS: int = 3           # Days to measure recent occupancy velocity
+    ALERT_UNCERTAINTY_THRESHOLD: float = 25.0    # CI width (upper_bound - lower_bound %) indicating high uncertainty
+    ALERT_FORECAST_HORIZON_DAYS: int = 7         # Default forecast horizon evaluated for capacity risk
+
     # Stage 3 — Bed Capacity Forecasting
     FORECAST_ENABLED: bool = True
     FORECAST_INTERVAL_SECONDS: int = 86400  # Default 24 hours (configurable for dev)

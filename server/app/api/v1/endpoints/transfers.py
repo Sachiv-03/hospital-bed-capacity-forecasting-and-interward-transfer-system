@@ -21,6 +21,8 @@ from app.schemas.transfer_recommendation import (
     RecommendationApproveRequest,
     RecommendationRejectRequest,
     TransferOverviewStatsResponse,
+    PatientDestinationRecommendationRequest,
+    PatientDestinationRecommendationResponse,
 )
 from app.schemas.audit_log import AuditLogResponse
 from app.schemas.patient_transfer import (
@@ -83,6 +85,39 @@ def generate_recommendations(
         user_id=current_user.id,
     )
     return result
+
+
+@router.post("/recommendations/patient-destination", response_model=PatientDestinationRecommendationResponse)
+def get_patient_destination_recommendations(
+    req: PatientDestinationRecommendationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([
+        UserRole.SUPER_ADMIN.value,
+        UserRole.ADMIN.value,
+        UserRole.DOCTOR.value,
+        UserRole.NURSE.value,
+    ])),
+):
+    """
+    Phase 11: Get explainable destination ward recommendations for an admitted patient or transfer context.
+    Evaluates verified available capacity, existing SARIMA forecast occupancy, and compatibility rules.
+    """
+    hospital_id = enforce_hospital_access(current_user, req.hospital_id)
+    try:
+        recommendations = TransferService.recommend_destinations_for_patient(
+            db=db,
+            hospital_id=hospital_id,
+            patient_id=req.patient_id,
+            transfer_id=req.transfer_id,
+            admission_id=req.admission_id,
+            source_ward_id=req.source_ward_id,
+            required_bed_type=req.required_bed_type,
+            horizon_days=req.horizon_days,
+        )
+        return recommendations
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 
 
 # ── 2. GET OVERVIEW STATS ───────────────────────────────────────────────────
@@ -608,4 +643,29 @@ def cancel_patient_transfer(
         return cancelled
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/patient-transfers/{transfer_id}/recommendations", response_model=PatientDestinationRecommendationResponse)
+def get_recommendations_for_transfer_request(
+    transfer_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Phase 11: Get explainable destination ward recommendations for an existing transfer request.
+    """
+    transfer_obj = PatientTransferService.get_transfer_by_id(db, transfer_id, current_user.hospital_id or 1)
+    if not transfer_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transfer record not found.")
+    h_id = enforce_hospital_access(current_user, transfer_obj.hospital_id)
+    try:
+        recommendations = TransferService.recommend_destinations_for_patient(
+            db=db,
+            hospital_id=h_id,
+            transfer_id=transfer_id,
+        )
+        return recommendations
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 

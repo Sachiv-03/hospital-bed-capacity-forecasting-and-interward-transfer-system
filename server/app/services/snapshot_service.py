@@ -71,18 +71,29 @@ class SnapshotService:
                 snapshots_created += 1
 
             try:
-                AlertService.evaluate_ward_alerts(
+                from app.services.explainable_alert_service import ExplainableAlertService
+                ExplainableAlertService.evaluate_ward_capacity_risk(
                     db=db,
-                    hospital_id=hospital_id,
                     ward_id=ward.id,
-                    ward_name=ward.name,
-                    occupied_beds=occupied_beds,
-                    total_beds=total_beds,
-                    available_beds=available_beds,
-                    occupancy_percentage=occupancy_pct,
+                    hospital_id=hospital_id,
+                    horizon=7,
+                    persist=True,
                 )
             except Exception as ex:
-                logger.error(f"Alert evaluation error for ward {ward.id}: {ex}")
+                logger.warning(f"Explainable alert evaluation notice for ward {ward.id}: {ex}, falling back to rule evaluator")
+                try:
+                    AlertService.evaluate_ward_alerts(
+                        db=db,
+                        hospital_id=hospital_id,
+                        ward_id=ward.id,
+                        ward_name=ward.name,
+                        occupied_beds=occupied_beds,
+                        total_beds=total_beds,
+                        available_beds=available_beds,
+                        occupancy_percentage=occupancy_pct,
+                    )
+                except Exception as ex_fallback:
+                    logger.error(f"Alert evaluation fallback error for ward {ward.id}: {ex_fallback}")
 
         db.commit()
 

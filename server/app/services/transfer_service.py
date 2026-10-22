@@ -12,6 +12,9 @@ from app.models.transfer_recommendation import (
     RecommendationStatus,
     RecommendationPriority,
 )
+from app.models.patient import Patient
+from app.models.admission import Admission, AdmissionStatus
+from app.models.transfer import Transfer, TransferStatus
 from app.models.audit_log import AuditLog
 from app.services.transfer_scoring_service import TransferScoringService
 from app.services.audit_service import AuditService
@@ -101,34 +104,99 @@ class TransferService:
         return default_rules
 
     @staticmethod
-    def get_ward_realtime_occupancy(db: Session, ward_id: int) -> Tuple[int, int, int, float]:
+    def get_ward_detailed_capacity_metrics(db: Session, ward_id: int) -> Dict[str, Any]:
+        """
+        Compute real-time ward capacity and bed availability:
+        effective_capacity = total_capacity - maintenance_beds - cleaning_beds
+        available_beds = max(0, min(available_beds_count - pending_transfers, effective_capacity - occupied_beds - reserved_beds - pending_transfers))
+        Accounts for cleaning, maintenance, reserved beds, and pending transfers.
+        """
+        ward = db.query(Ward).filter(Ward.id == ward_id).first()
+        if not ward:
+            return {
+                "ward_id": ward_id,
+                "total_beds": 0,
+                "effective_capacity": 0,
+                "occupied_beds": 0,
+                "available_beds": 0,
+                "cleaning_beds": 0,
+                "maintenance_beds": 0,
+                "reserved_beds": 0,
+                "pending_incoming_transfers": 0,
+                "occupancy_percentage": 0.0,
+                "available_candidate_beds": [],
+            }
+
+        total_beds = ward.capacity or 0
+        beds = db.query(Bed).filter(Bed.ward_id == ward_id).all()
+
+        counts = {
+            BedStatus.AVAILABLE.value: 0,
+            BedStatus.OCCUPIED.value: 0,
+            BedStatus.CLEANING.value: 0,
+            BedStatus.MAINTENANCE.value: 0,
+            BedStatus.RESERVED.value: 0,
+        }
+        for b in beds:
+            if b.status in counts:
+                counts[b.status] += 1
+
+        occupied_count = counts[BedStatus.OCCUPIED.value]
+        cleaning_count = counts[BedStatus.CLEANING.value]
+        maintenance_count = counts[BedStatus.MAINTENANCE.value]
+        reserved_count = counts[BedStatus.RESERVED.value]
+
+        # Pending transfers targeting this ward (REQUESTED or APPROVED)
+        pending_transfers = db.query(Transfer).filter(
+            Transfer.destination_ward_id == ward_id,
+            Transfer.status.in_([TransferStatus.REQUESTED.value, TransferStatus.APPROVED.value]),
+        ).all()
+        pending_incoming = len(pending_transfers)
+        reserved_bed_ids = {t.destination_bed_id for t in pending_transfers if t.destination_bed_id}
+
+        # Effective capacity = total beds minus maintenance & cleaning
+        effective_capacity = max(0, total_beds - maintenance_count - cleaning_count)
+
+        # Candidate beds: status is AVAILABLE and not targeted by a pending transfer
+        candidate_beds = [b for b in beds if b.status == BedStatus.AVAILABLE.value and b.id not in reserved_bed_ids]
+
+        # Available beds calculation
+        calculated_available = max(0, effective_capacity - occupied_count - reserved_count - pending_incoming)
+        actual_available = len(candidate_beds)
+        final_available_beds = min(calculated_available, actual_available) if actual_available > 0 else calculated_available
+
+        occ_percentage = round((occupied_count / total_beds) * 100.0, 1) if total_beds > 0 else 0.0
+
+        return {
+            "ward_id": ward_id,
+            "ward": ward,
+            "total_beds": total_beds,
+            "effective_capacity": effective_capacity,
+            "occupied_beds": occupied_count,
+            "available_beds": final_available_beds,
+            "cleaning_beds": cleaning_count,
+            "maintenance_beds": maintenance_count,
+            "reserved_beds": reserved_count,
+            "pending_incoming_transfers": pending_incoming,
+            "occupancy_percentage": occ_percentage,
+            "available_candidate_beds": candidate_beds,
+        }
+
+    @classmethod
+    def get_ward_realtime_occupancy(cls, db: Session, ward_id: int) -> Tuple[int, int, int, float]:
         """
         Compute real-time ward capacity metrics:
         Returns (total_beds, occupied_beds, available_beds, occupancy_percentage)
         """
-        ward = db.query(Ward).filter(Ward.id == ward_id).first()
-        if not ward:
-            return 0, 0, 0, 0.0
-
-        total_beds = ward.capacity or 0
-        if total_beds == 0:
-            return 0, 0, 0, 0.0
-
-        occupied_count = (
-            db.query(Bed)
-            .filter(Bed.ward_id == ward_id, Bed.status == BedStatus.OCCUPIED.value)
-            .count()
-        )
-        available_count = max(0, total_beds - occupied_count)
-        occ_percentage = round((occupied_count / total_beds) * 100.0, 1)
-
-        return total_beds, occupied_count, available_count, occ_percentage
+        metrics = cls.get_ward_detailed_capacity_metrics(db, ward_id)
+        return metrics["total_beds"], metrics["occupied_beds"], metrics["available_beds"], metrics["occupancy_percentage"]
 
     @staticmethod
-    def get_latest_forecast(db: Session, ward_id: int, horizon_days: int = 1) -> Tuple[float, str, Optional[float], Optional[float]]:
+    def get_detailed_ward_forecast(db: Session, ward_id: int, horizon_days: int = 1, effective_capacity: int = 0) -> Dict[str, Any]:
         """
-        Fetch latest Stage 3 forecast for a ward.
-        Returns (predicted_occupancy_percentage, risk_level, lower_bound, upper_bound)
+        Fetch latest SARIMA forecast for a ward without re-fitting.
+        Calculates forecast_available_beds = applicable_capacity - forecasted_occupied_beds
+        and identifies staleness or missing forecast data.
         """
         forecast = (
             db.query(BedCapacityForecast)
@@ -136,14 +204,62 @@ class TransferService:
             .order_by(BedCapacityForecast.generated_at.desc(), BedCapacityForecast.forecast_date.asc())
             .first()
         )
-        if forecast:
+        if not forecast:
+            return {
+                "has_forecast": False,
+                "status": "UNAVAILABLE",
+                "predicted_occupancy_percentage": None,
+                "predicted_occupied_beds": None,
+                "forecast_available_beds": None,
+                "lower_bound": None,
+                "upper_bound": None,
+                "risk_level": RiskLevel.NORMAL.value,
+                "forecast_date": None,
+                "generated_at": None,
+                "warnings": ["Forecast data unavailable for this ward; recommendations based on live verified capacity only."],
+            }
+
+        # Check staleness: older than 48 hours
+        is_stale = False
+        warnings = []
+        if forecast.generated_at and forecast.generated_at < datetime.utcnow() - timedelta(hours=48):
+            is_stale = True
+            warnings.append(f"Forecast generated on {forecast.generated_at.strftime('%Y-%m-%d')} (>48h ago) may be stale; staff re-verification required.")
+
+        pred_occ_pct = round(forecast.predicted_occupancy_percentage, 1)
+        pred_occ_beds = round(forecast.predicted_occupied_beds, 1)
+
+        applicable_capacity = effective_capacity if effective_capacity > 0 else (forecast.ward.capacity if forecast.ward else 0)
+        forecast_avail_beds = max(0.0, round(applicable_capacity - pred_occ_beds, 1)) if applicable_capacity > 0 else 0.0
+
+        return {
+            "has_forecast": True,
+            "status": "STALE" if is_stale else "VERIFIED",
+            "predicted_occupancy_percentage": pred_occ_pct,
+            "predicted_occupied_beds": pred_occ_beds,
+            "forecast_available_beds": forecast_avail_beds,
+            "lower_bound": forecast.lower_bound,
+            "upper_bound": forecast.upper_bound,
+            "risk_level": forecast.risk_level,
+            "forecast_date": forecast.forecast_date.isoformat() if hasattr(forecast.forecast_date, "isoformat") else str(forecast.forecast_date),
+            "generated_at": forecast.generated_at,
+            "warnings": warnings,
+        }
+
+    @classmethod
+    def get_latest_forecast(cls, db: Session, ward_id: int, horizon_days: int = 1) -> Tuple[float, str, Optional[float], Optional[float]]:
+        """
+        Fetch latest Stage 3 forecast for a ward.
+        Returns (predicted_occupancy_percentage, risk_level, lower_bound, upper_bound)
+        """
+        fc = cls.get_detailed_ward_forecast(db, ward_id, horizon_days)
+        if fc["has_forecast"]:
             return (
-                round(forecast.predicted_occupancy_percentage, 1),
-                forecast.risk_level,
-                forecast.lower_bound,
-                forecast.upper_bound,
+                fc["predicted_occupancy_percentage"] or 0.0,
+                fc["risk_level"],
+                fc["lower_bound"],
+                fc["upper_bound"],
             )
-        # Fallback if no forecast exists
         return 0.0, RiskLevel.NORMAL.value, None, None
 
     @staticmethod
@@ -308,6 +424,7 @@ class TransferService:
                     warnings_list.append(f"Destination {dest_ward.name} has limited safe transfer capacity ({safe_capacity} beds).")
                 if s_lower is not None and s_upper is not None and (s_upper - s_lower) > 20.0:
                     warnings_list.append(f"Source forecast uncertainty is moderate to high (range: {s_lower:.1f}% - {s_upper:.1f}%).")
+                warnings_list.append("Staffing ratio and equipment constraints are not recorded in system; authorized staff clinical verification required.")
 
                 rec = TransferRecommendation(
                     hospital_id=hospital_id,
@@ -530,4 +647,277 @@ class TransferService:
             "pending_recommendations": pending_count,
             "no_suitable_destination_wards": no_suitable_count,
             "updated_at": datetime.utcnow(),
+        }
+
+    @classmethod
+    def recommend_destinations_for_patient(
+        cls,
+        db: Session,
+        hospital_id: int,
+        patient_id: Optional[int] = None,
+        transfer_id: Optional[int] = None,
+        admission_id: Optional[int] = None,
+        source_ward_id: Optional[int] = None,
+        required_bed_type: Optional[str] = None,
+        horizon_days: int = 1,
+    ) -> Dict[str, Any]:
+        """
+        Phase 11: Patient-Centric Inter-Ward Transfer Recommendation Engine.
+        Analyzes current live capacity, existing forecasts, patient category/bed type compatibility,
+        and ward compatibility rules to recommend and rank suitable destination wards.
+        Human-in-the-loop decision support: Does not automatically execute transfers.
+        """
+        cls.get_or_create_default_rules(db, hospital_id)
+
+        patient_name = None
+        patient_identifier = None
+
+        # 1. Resolve Patient & Source Ward Context
+        if transfer_id:
+            transfer = db.query(Transfer).filter(
+                Transfer.id == transfer_id,
+                Transfer.hospital_id == hospital_id,
+            ).first()
+            if not transfer:
+                raise ValueError(f"Transfer request #{transfer_id} not found in this hospital.")
+            source_ward_id = transfer.source_ward_id
+            patient_id = transfer.patient_id
+            if transfer.patient:
+                patient_name = f"{transfer.patient.first_name} {transfer.patient.last_name}"
+                patient_identifier = transfer.patient.patient_identifier
+
+        elif patient_id:
+            patient = db.query(Patient).filter(
+                Patient.id == patient_id,
+                Patient.hospital_id == hospital_id,
+            ).first()
+            if not patient:
+                raise ValueError(f"Patient ID #{patient_id} not found in this hospital.")
+            patient_name = f"{patient.first_name} {patient.last_name}"
+            patient_identifier = patient.patient_identifier
+
+            active_admission = db.query(Admission).filter(
+                Admission.patient_id == patient_id,
+                Admission.hospital_id == hospital_id,
+                Admission.status == AdmissionStatus.ADMITTED.value,
+            ).first()
+            if not active_admission:
+                raise ValueError(f"Patient '{patient_name}' does not have an active admission in this hospital.")
+            source_ward_id = active_admission.ward_id
+
+        elif admission_id:
+            adm = db.query(Admission).filter(
+                Admission.id == admission_id,
+                Admission.hospital_id == hospital_id,
+            ).first()
+            if not adm:
+                raise ValueError(f"Admission #{admission_id} not found in this hospital.")
+            source_ward_id = adm.ward_id
+            patient_id = adm.patient_id
+            if adm.patient:
+                patient_name = f"{adm.patient.first_name} {adm.patient.last_name}"
+                patient_identifier = adm.patient.patient_identifier
+
+        elif source_ward_id:
+            src = db.query(Ward).filter(
+                Ward.id == source_ward_id,
+                Ward.hospital_id == hospital_id,
+            ).first()
+            if not src:
+                raise ValueError(f"Source ward ID #{source_ward_id} not found in this hospital.")
+
+        else:
+            raise ValueError("A patient_id, transfer_id, or source_ward_id must be provided.")
+
+        source_ward = db.query(Ward).filter(
+            Ward.id == source_ward_id,
+            Ward.hospital_id == hospital_id,
+        ).first()
+        if not source_ward:
+            raise ValueError(f"Source ward ID #{source_ward_id} not found in this hospital.")
+
+        # Source ward live metrics & forecast
+        s_metrics = cls.get_ward_detailed_capacity_metrics(db, source_ward_id)
+        s_forecast = cls.get_detailed_ward_forecast(db, source_ward_id, horizon_days, s_metrics["effective_capacity"])
+        s_curr_occ = s_metrics["occupancy_percentage"]
+        s_pred_occ = s_forecast["predicted_occupancy_percentage"] if s_forecast["has_forecast"] else s_curr_occ
+        s_risk = s_forecast["risk_level"] if s_forecast["has_forecast"] else RiskLevel.NORMAL.value
+
+        # 2. Query all candidate active wards in the same hospital (excluding source ward)
+        candidate_wards = db.query(Ward).filter(
+            Ward.hospital_id == hospital_id,
+            Ward.status == WardStatus.ACTIVE.value,
+            Ward.id != source_ward_id,
+        ).order_by(Ward.name).all()
+
+        evaluated_destinations = []
+
+        for dest_ward in candidate_wards:
+            d_metrics = cls.get_ward_detailed_capacity_metrics(db, dest_ward.id)
+            d_total = d_metrics["total_beds"]
+            d_avail = d_metrics["available_beds"]
+            d_curr_occ = d_metrics["occupancy_percentage"]
+            d_effective_cap = d_metrics["effective_capacity"]
+            candidate_beds = d_metrics["available_candidate_beds"]
+
+            # Forecast for destination ward
+            d_forecast = cls.get_detailed_ward_forecast(db, dest_ward.id, horizon_days, d_effective_cap)
+            d_pred_occ = d_forecast["predicted_occupancy_percentage"] if d_forecast["has_forecast"] else d_curr_occ
+
+            # Compatibility rule
+            allowed, priority, max_safe_occ, rule_reason = cls.evaluate_rule_compatibility(
+                db, hospital_id, source_ward, dest_ward
+            )
+
+            # Bed-type compatibility check
+            if required_bed_type:
+                type_matching_beds = [b for b in candidate_beds if b.bed_type == required_bed_type]
+            else:
+                type_matching_beds = candidate_beds
+
+            # Calculate safe capacity
+            safe_capacity = cls.calculate_safe_capacity(
+                d_total, d_metrics["occupied_beds"], max_safe_occ_pct=max_safe_occ, min_available_beds=1
+            )
+
+            # Determine eligibility
+            ineligibility_reasons = []
+            warnings = list(d_forecast.get("warnings", []))
+            reasons = []
+
+            if d_total <= 0:
+                ineligibility_reasons.append("Ward capacity is 0 or unconfigured.")
+            if d_avail <= 0 or len(candidate_beds) == 0:
+                ineligibility_reasons.append("No verified available physical beds currently in ward.")
+            if not allowed:
+                ineligibility_reasons.append(f"Ward transfer policy restricts transfer: {rule_reason}")
+            if safe_capacity <= 0 or d_curr_occ >= max_safe_occ:
+                ineligibility_reasons.append(f"Ward is at or above safety occupancy threshold ({d_curr_occ}% current, {max_safe_occ}% maximum safe).")
+            if required_bed_type and len(type_matching_beds) == 0:
+                ineligibility_reasons.append(f"No available beds matching required bed type '{required_bed_type}' (Available of other types: {len(candidate_beds)}).")
+            if d_forecast.get("predicted_occupancy_percentage") is not None and d_forecast["predicted_occupancy_percentage"] >= 90.0:
+                warnings.append(f"Destination forecast predicts high pressure ({d_forecast['predicted_occupancy_percentage']}%).")
+
+            is_eligible = len(ineligibility_reasons) == 0
+
+            # Transparent Scoring
+            if not is_eligible:
+                score = 0.0
+                priority_level = "LOW"
+                breakdown = {
+                    "source_urgency": 0.0,
+                    "destination_capacity": 0.0,
+                    "future_capacity": 0.0,
+                    "compatibility": 0.0,
+                    "max_possible": 100.0,
+                }
+            else:
+                score, priority_enum, breakdown = TransferScoringService.calculate_score(
+                    source_current_occ=s_curr_occ,
+                    source_pred_occ=s_pred_occ,
+                    source_risk_level=s_risk,
+                    dest_current_occ=d_curr_occ,
+                    dest_pred_occ=d_pred_occ,
+                    dest_available_beds=d_avail,
+                    safe_transfer_capacity=safe_capacity,
+                    compatibility_allowed=allowed,
+                    rule_priority=priority,
+                )
+                priority_level = priority_enum.value
+
+                # Construct Explainability Reasons
+                reasons.append(f"Capacity available: {d_avail} verified bed(s) available with safe headroom for {safe_capacity} transfer(s) below {max_safe_occ}% safety limit.")
+                if d_forecast["has_forecast"]:
+                    reasons.append(f"Forecast occupancy: Destination projected to remain at {d_pred_occ}% on target date (~{d_forecast['forecast_available_beds']} beds available).")
+                else:
+                    reasons.append("Live bed capacity verified; forecast data unavailable.")
+                reasons.append(f"Compatibility match: {rule_reason}")
+                if required_bed_type and len(type_matching_beds) > 0:
+                    reasons.append(f"Specialty match: {len(type_matching_beds)} verified available bed(s) matching '{required_bed_type}'.")
+
+            # Standard constraints & warnings
+            warnings.append("Staffing ratio and specialty equipment constraints are not recorded in system; authorized staff physical verification is required.")
+            if d_metrics["pending_incoming_transfers"] > 0:
+                warnings.append(f"{d_metrics['pending_incoming_transfers']} other transfer request(s) are currently pending for this destination ward.")
+            if d_metrics["cleaning_beds"] > 0 or d_metrics["maintenance_beds"] > 0:
+                warnings.append(f"{d_metrics['cleaning_beds']} bed(s) in cleaning, {d_metrics['maintenance_beds']} bed(s) under maintenance.")
+
+            available_beds_list = [
+                {
+                    "id": b.id,
+                    "bed_number": b.bed_number,
+                    "bed_type": b.bed_type,
+                    "status": b.status,
+                }
+                for b in (type_matching_beds if required_bed_type else candidate_beds)[:15]
+            ]
+
+            dest_rec = {
+                "ward_id": dest_ward.id,
+                "ward_name": dest_ward.name,
+                "ward_type": dest_ward.ward_type,
+                "department": dest_ward.department,
+                "floor": dest_ward.floor,
+                "capacity": d_total,
+                "current_occupied_beds": d_metrics["occupied_beds"],
+                "current_available_beds": d_avail,
+                "current_occupancy_percentage": d_curr_occ,
+                "cleaning_beds": d_metrics["cleaning_beds"],
+                "maintenance_beds": d_metrics["maintenance_beds"],
+                "reserved_beds": d_metrics["reserved_beds"],
+                "pending_incoming_transfers": d_metrics["pending_incoming_transfers"],
+                "effective_capacity": d_effective_cap,
+                "safe_transfer_capacity": safe_capacity,
+                "forecasted_occupied_beds": d_forecast["predicted_occupied_beds"],
+                "forecasted_occupancy_percentage": d_forecast["predicted_occupancy_percentage"],
+                "forecast_available_beds": d_forecast["forecast_available_beds"],
+                "forecast_target_date": d_forecast["forecast_date"],
+                "forecast_risk_level": d_forecast["risk_level"],
+                "forecast_status": d_forecast["status"],
+                "is_eligible": is_eligible,
+                "ineligibility_reasons": ineligibility_reasons,
+                "score": score,
+                "rank": 0,
+                "priority_level": priority_level,
+                "reasons": reasons,
+                "warnings": warnings,
+                "score_breakdown": breakdown,
+                "compatibility_allowed": allowed,
+                "compatibility_rule": rule_reason,
+                "available_candidate_beds": available_beds_list,
+                "verification_required_statement": "Staff must physically verify bed readiness and clinically approve the transfer. Decision support only.",
+            }
+            evaluated_destinations.append(dest_rec)
+
+        # 3. Rank Candidates: Eligible first (by score DESC, then available_beds DESC), followed by Ineligible
+        eligible_candidates = [r for r in evaluated_destinations if r["is_eligible"]]
+        ineligible_candidates = [r for r in evaluated_destinations if not r["is_eligible"]]
+
+        eligible_candidates.sort(key=lambda r: (r["score"], r["current_available_beds"]), reverse=True)
+        ineligible_candidates.sort(key=lambda r: r["current_available_beds"], reverse=True)
+
+        for i, r in enumerate(eligible_candidates):
+            r["rank"] = i + 1
+
+        for i, r in enumerate(ineligible_candidates):
+            r["rank"] = len(eligible_candidates) + i + 1
+
+        all_recommendations = eligible_candidates + ineligible_candidates
+
+        return {
+            "hospital_id": hospital_id,
+            "patient_id": patient_id,
+            "patient_name": patient_name,
+            "patient_identifier": patient_identifier,
+            "source_ward_id": source_ward_id,
+            "source_ward_name": source_ward.name,
+            "source_ward_type": source_ward.ward_type,
+            "source_current_occupancy": s_curr_occ,
+            "source_predicted_occupancy": s_pred_occ,
+            "required_bed_type": required_bed_type,
+            "evaluated_at": datetime.utcnow(),
+            "total_destination_wards_evaluated": len(candidate_wards),
+            "eligible_destinations_count": len(eligible_candidates),
+            "recommendations": all_recommendations,
+            "verification_required_statement": "Staff must physically verify bed readiness and clinically approve the transfer. Decision support only.",
         }

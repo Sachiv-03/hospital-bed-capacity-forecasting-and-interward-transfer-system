@@ -296,9 +296,65 @@ export interface DailySummary {
   transfers_out: number;
 }
 
-export type AlertType = 'HIGH_OCCUPANCY' | 'CRITICAL_OCCUPANCY' | 'LOW_AVAILABILITY';
-export type AlertSeverity = 'INFO' | 'WARNING' | 'CRITICAL';
-export type AlertStatus = 'ACTIVE' | 'RESOLVED';
+export type AlertType =
+  | 'HIGH_OCCUPANCY'
+  | 'CRITICAL_OCCUPANCY'
+  | 'LOW_AVAILABILITY'
+  | 'FORECAST_HIGH_OCCUPANCY'
+  | 'FORECAST_CRITICAL_OCCUPANCY'
+  | 'CAPACITY_EXCEEDANCE'
+  | 'RAPID_INCREASE'
+  | 'HIGH_UNCERTAINTY'
+  | 'INSUFFICIENT_DATA';
+
+export type AlertSeverity = 'INFO' | 'WARNING' | 'HIGH' | 'CRITICAL';
+export type AlertStatus = 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED';
+
+export interface TriggeredRule {
+  rule_id: string;
+  rule_name: string;
+  severity: string;
+  condition_met: string;
+  trigger_value: number;
+  threshold_value: number;
+  description: string;
+}
+
+export interface ExplainableEvidence {
+  hospital_id: number;
+  hospital_name: string;
+  ward_id: number;
+  ward_name: string;
+  ward_type: string;
+  ward_capacity: number;
+  current_occupied_beds: number;
+  current_available_beds: number;
+  current_occupancy_percentage: number;
+  forecast_target_date?: string | null;
+  forecast_horizon_days: number;
+  predicted_occupied_beds?: number | null;
+  predicted_occupancy_percentage?: number | null;
+  predicted_available_beds?: number | null;
+  lower_bound_percentage?: number | null;
+  upper_bound_percentage?: number | null;
+  uncertainty_interval_width?: number | null;
+  historical_trend_percentage_change?: number | null;
+  historical_trend_days?: number | null;
+  time_to_threshold_days?: number | null;
+  time_to_threshold_date?: string | null;
+  is_capacity_exceeded?: boolean;
+  data_quality_notes: string[];
+  model_used: string;
+  evaluated_at: string;
+}
+
+export interface CapacityAlertExplanation {
+  headline: string;
+  human_readable_explanation: string;
+  suggested_actions: string[];
+  triggered_rules: TriggeredRule[];
+  evidence: ExplainableEvidence;
+}
 
 export interface CapacityAlert {
   id: number;
@@ -314,11 +370,44 @@ export interface CapacityAlert {
   status: AlertStatus;
   created_at: string;
   resolved_at?: string | null;
+  acknowledged_at?: string | null;
+  acknowledged_by_id?: number | null;
+  acknowledged_by_name?: string | null;
+  explanation?: CapacityAlertExplanation | null;
 }
 
 export interface CapacityAlertListResponse {
   items: CapacityAlert[];
   total: number;
+}
+
+export interface AlertEvaluationResultItem {
+  ward_id: number;
+  ward_name: string;
+  risk_level: string;
+  alerts_created_or_updated: number;
+  rules_triggered: string[];
+  has_alert: boolean;
+  explanation?: CapacityAlertExplanation | null;
+}
+
+export interface AlertEvaluationResponse {
+  status: string;
+  hospital_id?: number | null;
+  wards_evaluated: number;
+  alerts_count: number;
+  evaluated_at: string;
+  results: AlertEvaluationResultItem[];
+}
+
+export interface CapacityAlertSummary {
+  total_active: number;
+  critical_count: number;
+  high_count: number;
+  moderate_count: number;
+  unacknowledged_count: number;
+  data_quality_count: number;
+  resolved_count: number;
 }
 
 export interface DataQualityReport {
@@ -609,3 +698,74 @@ export interface PatientTransferListResponse {
   limit: number;
   pages: number;
 }
+
+// ─── Phase 11 — Transfer Decision Support Types ─────────────────────────────
+
+export interface AvailableCandidateBed {
+  id: number;
+  bed_number: string;
+  bed_type: string;
+  status: string;
+}
+
+export interface DestinationWardRecommendation {
+  ward_id: number;
+  ward_name: string;
+  ward_type: string;
+  department: string;
+  floor: string;
+  capacity: number;
+
+  current_occupied_beds: number;
+  current_available_beds: number;
+  current_occupancy_percentage: number;
+
+  cleaning_beds: number;
+  maintenance_beds: number;
+  reserved_beds: number;
+  pending_incoming_transfers: number;
+
+  effective_capacity: number;
+  safe_transfer_capacity: number;
+
+  forecasted_occupied_beds?: number | null;
+  forecasted_occupancy_percentage?: number | null;
+  forecast_available_beds?: number | null;
+  forecast_target_date?: string | null;
+  forecast_risk_level?: string | null;
+  forecast_status: 'VERIFIED' | 'UNAVAILABLE' | 'STALE' | string;
+
+  is_eligible: boolean;
+  ineligibility_reasons: string[];
+
+  score: number;
+  rank: number;
+  priority_level: string;
+  reasons: string[];
+  warnings: string[];
+  score_breakdown: Record<string, number>;
+
+  compatibility_allowed: boolean;
+  compatibility_rule?: string | null;
+  available_candidate_beds: AvailableCandidateBed[];
+  verification_required_statement: string;
+}
+
+export interface PatientDestinationRecommendationResponse {
+  hospital_id: number;
+  patient_id?: number | null;
+  patient_name?: string | null;
+  patient_identifier?: string | null;
+  source_ward_id: number;
+  source_ward_name: string;
+  source_ward_type: string;
+  source_current_occupancy: number;
+  source_predicted_occupancy?: number | null;
+  required_bed_type?: string | null;
+  evaluated_at: string;
+  total_destination_wards_evaluated: number;
+  eligible_destinations_count: number;
+  recommendations: DestinationWardRecommendation[];
+  verification_required_statement: string;
+}
+

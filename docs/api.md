@@ -36,11 +36,25 @@
 }
 ```
 
+## Capacity Alerts & Explainable AI Endpoints
+- `GET /api/v1/alerts` - List active, acknowledged, and resolved capacity alerts with tenant isolation and filter parameters (`hospital_id`, `ward_id`, `status`, `severity`).
+- `GET /api/v1/alerts/{alert_id}` - Retrieve detailed alert evidence, triggered rules, and administrative action checklist.
+- `GET /api/v1/alerts/{alert_id}/explanation` - Retrieve complete explainable decision-support payload and confidence intervals.
+- `POST /api/v1/alerts/{alert_id}/acknowledge` - Acknowledge active capacity alert with user attribution and timestamp.
+- `POST /api/v1/alerts/{alert_id}/resolve` - Manually resolve active/acknowledged capacity alert.
+- `POST /api/v1/alerts/evaluate` - Trigger on-demand explainable risk evaluation across hospital wards using live metrics and SARIMA forecasts.
+
 ---
 
-## Future Phase API Specification Placeholders
-- `POST /api/v1/auth/login` - User authentication (Phase 2)
-- `GET /api/v1/beds` - Bed status registry (Phase 2)
-- `GET /api/v1/wards` - Ward capacity stats (Phase 2)
-- `POST /api/v1/forecast/predict` - AI bed capacity predictions (Phase 3)
-- `POST /api/v1/transfers/recommend` - Intelligent transfer solver (Phase 3)
+## Active Service Endpoints Summary
+- `POST /api/v1/auth/login` - User authentication & JWT issuance
+- `GET /api/v1/hospitals` - Multi-hospital registry
+- `GET /api/v1/wards` - Ward capacity registry
+- `GET /api/v1/beds` - Bed occupancy registry
+- `GET /api/v1/wards/{ward_id}/forecast` - AI SARIMA 1-day, 3-day, 7-day bed capacity forecasts
+- `GET /api/v1/hospitals/{hospital_id}/forecast` - Hospital-wide aggregate capacity projection
+- `GET /api/v1/transfers/recommendations` - Inter-ward transfer decision-support recommendations
+- `POST /api/v1/transfers/recommendations/patient-destination` - Phase 11 explainable destination ward recommendations for patient transfers with live capacity & SARIMA forecasts
+- `GET /api/v1/transfers/patient-transfers/{transfer_id}/recommendations` - Phase 11 explainable destination ward recommendations for an existing patient transfer request
+- `POST /api/v1/ingestion/events` - Bed state transition telemetry ingestion
+

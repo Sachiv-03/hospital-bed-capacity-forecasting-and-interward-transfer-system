@@ -5,6 +5,7 @@ import {
   TransferOverviewStats,
   WardTransferRule,
   AuditLog,
+  PatientDestinationRecommendationResponse,
 } from '../types';
 
 export const transferService = {
@@ -137,6 +138,25 @@ export const transferService = {
 
   cancelPatientTransfer: async (id: number) => {
     const response = await apiClient.patch(`/transfers/patient-transfers/${id}/cancel`);
+    return response.data;
+  },
+
+  // ── PHASE 11: PATIENT & TRANSFER DESTINATION RECOMMENDATIONS ─────────────
+  getPatientDestinationRecommendations: async (data: {
+    patient_id?: number;
+    transfer_id?: number;
+    admission_id?: number;
+    source_ward_id?: number;
+    required_bed_type?: string;
+    horizon_days?: number;
+    hospital_id?: number;
+  }): Promise<PatientDestinationRecommendationResponse> => {
+    const response = await apiClient.post('/transfers/recommendations/patient-destination', data);
+    return response.data;
+  },
+
+  getTransferRequestRecommendations: async (transferId: number): Promise<PatientDestinationRecommendationResponse> => {
+    const response = await apiClient.get(`/transfers/patient-transfers/${transferId}/recommendations`);
     return response.data;
   },
 };

@@ -143,12 +143,43 @@ class AlertService:
         return created_or_updated
 
     @staticmethod
+    def _format_alert_dict(a: CapacityAlert) -> Dict[str, Any]:
+        import json
+        explanation_data = None
+        if getattr(a, "explanation_json", None):
+            try:
+                explanation_data = json.loads(a.explanation_json)
+            except Exception:
+                explanation_data = None
+
+        return {
+            "id": a.id,
+            "hospital_id": a.hospital_id,
+            "ward_id": a.ward_id,
+            "ward_name": a.ward.name if a.ward else "",
+            "hospital_name": a.hospital.name if a.hospital else "",
+            "alert_type": a.alert_type,
+            "severity": a.severity,
+            "message": a.message,
+            "trigger_value": a.trigger_value,
+            "threshold_value": a.threshold_value,
+            "status": a.status,
+            "created_at": a.created_at,
+            "resolved_at": a.resolved_at,
+            "acknowledged_at": getattr(a, "acknowledged_at", None),
+            "acknowledged_by_id": getattr(a, "acknowledged_by_id", None),
+            "acknowledged_by_name": a.acknowledged_by.full_name if getattr(a, "acknowledged_by", None) else None,
+            "explanation": explanation_data,
+        }
+
+    @staticmethod
     def get_alerts(
         db: Session,
         hospital_id: Optional[int] = None,
         ward_id: Optional[int] = None,
         status: Optional[str] = None,
         severity: Optional[str] = None,
+        alert_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         query = db.query(CapacityAlert)
 
@@ -160,27 +191,80 @@ class AlertService:
             query = query.filter(CapacityAlert.status == status.upper())
         if severity:
             query = query.filter(CapacityAlert.severity == severity.upper())
+        if alert_type:
+            query = query.filter(CapacityAlert.alert_type == alert_type.upper())
 
         alerts = query.order_by(CapacityAlert.created_at.desc()).all()
+        return [AlertService._format_alert_dict(a) for a in alerts]
 
-        results = []
-        for a in alerts:
-            results.append({
-                "id": a.id,
-                "hospital_id": a.hospital_id,
-                "ward_id": a.ward_id,
-                "ward_name": a.ward.name if a.ward else "",
-                "hospital_name": a.hospital.name if a.hospital else "",
-                "alert_type": a.alert_type,
-                "severity": a.severity,
-                "message": a.message,
-                "trigger_value": a.trigger_value,
-                "threshold_value": a.threshold_value,
-                "status": a.status,
-                "created_at": a.created_at,
-                "resolved_at": a.resolved_at,
-            })
-        return results
+    @staticmethod
+    def get_alert_summary(db: Session, hospital_id: Optional[int] = None) -> Dict[str, int]:
+        """
+        Returns aggregated counts and summary metrics for capacity alerts.
+        """
+        query = db.query(CapacityAlert)
+        if hospital_id is not None:
+            query = query.filter(CapacityAlert.hospital_id == hospital_id)
+
+        all_alerts = query.all()
+
+        active_alerts = [a for a in all_alerts if a.status in [AlertStatus.ACTIVE.value, AlertStatus.ACKNOWLEDGED.value]]
+        unacknowledged = [a for a in all_alerts if a.status == AlertStatus.ACTIVE.value]
+        critical_alerts = [a for a in active_alerts if a.severity == AlertSeverity.CRITICAL.value]
+        high_alerts = [a for a in active_alerts if a.severity in [AlertSeverity.HIGH.value, AlertSeverity.WARNING.value]]
+        moderate_alerts = [a for a in active_alerts if a.severity == AlertSeverity.INFO.value]
+        data_quality_alerts = [
+            a for a in active_alerts
+            if a.alert_type in [AlertType.INSUFFICIENT_DATA.value, AlertType.HIGH_UNCERTAINTY.value]
+        ]
+        resolved_alerts = [a for a in all_alerts if a.status == AlertStatus.RESOLVED.value]
+
+        return {
+            "total_active": len(active_alerts),
+            "critical_count": len(critical_alerts),
+            "high_count": len(high_alerts),
+            "moderate_count": len(moderate_alerts),
+            "unacknowledged_count": len(unacknowledged),
+            "data_quality_count": len(data_quality_alerts),
+            "resolved_count": len(resolved_alerts),
+        }
+
+    @staticmethod
+    def get_alert_by_id(
+        db: Session,
+        alert_id: int,
+        hospital_id: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
+        query = db.query(CapacityAlert).filter(CapacityAlert.id == alert_id)
+        if hospital_id is not None:
+            query = query.filter(CapacityAlert.hospital_id == hospital_id)
+
+        alert = query.first()
+        if not alert:
+            return None
+        return AlertService._format_alert_dict(alert)
+
+    @staticmethod
+    def acknowledge_alert(
+        db: Session,
+        alert_id: int,
+        user_id: int,
+        hospital_id: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
+        query = db.query(CapacityAlert).filter(CapacityAlert.id == alert_id)
+        if hospital_id is not None:
+            query = query.filter(CapacityAlert.hospital_id == hospital_id)
+
+        alert = query.first()
+        if not alert:
+            return None
+
+        alert.status = AlertStatus.ACKNOWLEDGED.value
+        alert.acknowledged_at = datetime.utcnow()
+        alert.acknowledged_by_id = user_id
+        db.commit()
+        db.refresh(alert)
+        return AlertService._format_alert_dict(alert)
 
     @staticmethod
     def resolve_alert(db: Session, alert_id: int, hospital_id: Optional[int] = None) -> Optional[CapacityAlert]:
