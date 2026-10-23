@@ -10,7 +10,7 @@ import { ModelPerformanceCard } from '../components/forecast/ModelPerformanceCar
 import { HospitalForecastOverview } from '../components/forecast/HospitalForecastOverview';
 import { CapacityAlertsSection } from '../components/CapacityAlertsSection';
 import { TrendingUp, RefreshCw, Cpu, CheckCircle2, AlertCircle, Play, Database, Calendar } from 'lucide-react';
-import { getDataQualityReport } from '../services/ingestionService';
+import { getDataQualityReport, getWardCapacityHistory } from '../services/ingestionService';
 
 interface HistoricalDataQualityReport {
   total_observations?: number;
@@ -45,6 +45,7 @@ export const ForecastPage: React.FC = () => {
   const [horizon, setHorizon] = useState<number>(7);
 
   const [forecastData, setForecastData] = useState<WardForecastResponse | null>(null);
+  const [historicalData, setHistoricalData] = useState<Array<{ date: string; occupancy_percentage: number }>>([]);
   const [qualityReport, setQualityReport] = useState<HistoricalDataQualityReport | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,20 +62,41 @@ export const ForecastPage: React.FC = () => {
   useEffect(() => {
     getWards({ limit: 100 })
       .then((res) => {
-        setWards(res.items);
-        setSelectedWardId((prevId) => prevId ?? (res.items.length > 0 ? res.items[0].id : null));
+        const hospWards = res.items.filter((w) => !hospitalId || w.hospital_id === hospitalId);
+        const finalWards = hospWards.length > 0 ? hospWards : res.items;
+        // Sort so ICU appears first for immediate high-impact demo
+        finalWards.sort((a, b) => {
+          if (a.ward_type === 'ICU') return -1;
+          if (b.ward_type === 'ICU') return 1;
+          return a.name.localeCompare(b.name);
+        });
+        setWards(finalWards);
+        setSelectedWardId((prevId) => prevId ?? (finalWards.length > 0 ? finalWards[0].id : null));
       })
       .catch((err) => console.error('Failed to load wards for forecasting:', err));
-  }, []);
+  }, [hospitalId]);
 
-  // Fetch Ward Forecast Data
+  // Fetch Ward Forecast Data + 14-day history for the chart
   const fetchForecast = useCallback(async () => {
     if (!selectedWardId) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await forecastService.getWardForecast(selectedWardId, horizon);
+      const [res, historyRes] = await Promise.all([
+        forecastService.getWardForecast(selectedWardId, horizon),
+        getWardCapacityHistory(selectedWardId, { limit: 14 }).catch(() => null),
+      ]);
       setForecastData(res);
+      if (historyRes && Array.isArray(historyRes.items)) {
+        const mapped = historyRes.items
+          .map((item: any) => ({
+            date: item.snapshot_time ? item.snapshot_time.slice(0, 10) : (item.date || ''),
+            occupancy_percentage: Number(item.occupancy_percentage),
+          }))
+          .filter((item: any) => Boolean(item.date))
+          .sort((a: any, b: any) => a.date.localeCompare(b.date));
+        setHistoricalData(mapped);
+      }
     } catch (err: unknown) {
       console.error('Failed to fetch forecast:', err);
       setError(extractErrorMessage(err, 'Failed to load bed capacity forecast.'));
@@ -254,6 +276,7 @@ export const ForecastPage: React.FC = () => {
       {/* Main Forecast Chart */}
       <ForecastChart
         forecastData={forecastData}
+        historicalData={historicalData}
         horizon={horizon}
         onHorizonChange={setHorizon}
       />

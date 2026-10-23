@@ -25,6 +25,7 @@ import { PatientsPage } from '../pages/patients/PatientsPage';
 import { PatientDetailPage } from '../pages/patients/PatientDetailPage';
 import { NewPatientPage } from '../pages/patients/NewPatientPage';
 import { AdmitPatientPage } from '../pages/patients/AdmitPatientPage';
+import { AssistantPage } from '../pages/assistant/AssistantPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -142,6 +143,14 @@ export const AppRoutes: React.FC = () => {
           element={
             <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse']}>
               <TransferDashboardPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="assistant"
+          element={
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse', 'receptionist']}>
+              <AssistantPage />
             </RoleGuard>
           }
         />

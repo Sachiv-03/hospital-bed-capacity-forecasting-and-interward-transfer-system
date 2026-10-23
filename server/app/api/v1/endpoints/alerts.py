@@ -181,7 +181,7 @@ def acknowledge_alert(
 def resolve_alert(
     alert_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(ADMIN_ROLES)),
+    current_user: User = Depends(require_roles(ALL_ROLES)),
 ):
     target_hospital_id = None if current_user.role == UserRole.SUPER_ADMIN.value else current_user.hospital_id
     resolved = AlertService.resolve_alert(db=db, alert_id=alert_id, hospital_id=target_hospital_id)
@@ -209,7 +209,7 @@ def evaluate_alerts(
     ward_id: Optional[int] = Query(None, description="Optional single ward ID to evaluate"),
     horizon: int = Query(7, ge=1, le=30, description="Forecast horizon in days"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(ADMIN_ROLES)),
+    current_user: User = Depends(require_roles(ALL_ROLES)),
 ):
     if current_user.role == UserRole.SUPER_ADMIN.value:
         target_hospital_id = hospital_id

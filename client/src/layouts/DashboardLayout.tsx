@@ -21,6 +21,7 @@ import {
   X,
   Building,
   ShieldAlert,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { getCapacityAlertSummary } from '../services/ingestionService';
@@ -124,6 +125,7 @@ export const DashboardLayout: React.FC = () => {
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'AI Assistant', path: '/assistant', icon: Sparkles, badge: 'AI' },
     ...(isSuperAdmin ? [{ name: 'Hospitals', path: '/hospitals', icon: Building, badge: 'System' }] : []),
     { name: 'Alerts', path: '/alerts', icon: ShieldAlert, badge: unreadAlerts > 0 ? String(unreadAlerts) : undefined },
     { name: 'Patients', path: '/patients', icon: Users },

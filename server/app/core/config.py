@@ -1,5 +1,5 @@
 import json
-from typing import List, Union
+from typing import List, Union, Optional
 from pydantic import AnyHttpUrl, validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -43,6 +43,19 @@ class Settings(BaseSettings):
     FORECAST_NORMAL_THRESHOLD: float = 70.0
     FORECAST_MODERATE_THRESHOLD: float = 85.0
     FORECAST_HIGH_THRESHOLD: float = 95.0
+
+    # Phase 17 — AI Hospital Management Assistant
+    AI_ASSISTANT_ENABLED: bool = True
+    LLM_PROVIDER: str = "auto"  # "auto", "gemini", "openai", "mock"
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-1.5-flash"
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    LLM_REQUEST_TIMEOUT_SECONDS: int = 20
+    LLM_MAX_TOKENS: int = 1024
+    LLM_TEMPERATURE: float = 0.2
+    AI_MAX_MESSAGE_LENGTH: int = 1000
+    AI_MAX_HISTORY_MESSAGES: int = 8
 
 
     # CORS

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, health, hospitals, wards, beds, patients, admissions, occupancy, ingestion, capacity, alerts, forecasting, transfers
+from app.api.v1.endpoints import auth, health, hospitals, wards, beds, patients, admissions, occupancy, ingestion, capacity, alerts, forecasting, transfers, assistant
 
 api_router = APIRouter()
 
@@ -40,6 +40,10 @@ api_router.include_router(forecasting.router, prefix="/forecasting", tags=["Bed 
 
 # Stage 4 — Inter-Ward Transfer Decision Support System
 api_router.include_router(transfers.router, prefix="/transfers", tags=["Inter-Ward Transfers"])
+
+# Phase 17 — AI Hospital Management Assistant
+api_router.include_router(assistant.router, prefix="/assistant", tags=["AI Hospital Management Assistant"])
+
 
 
 

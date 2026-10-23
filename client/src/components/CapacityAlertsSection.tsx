@@ -85,8 +85,12 @@ export const CapacityAlertsSection: React.FC<Props> = ({ hospitalId }) => {
         setSelectedAlertForModal(null);
       }
       fetchAlerts();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to resolve alert:', err);
+      const detail = err.response?.data?.detail;
+      const errorStr = typeof detail === 'string' ? detail : (err.message || 'Failed to resolve alert.');
+      setToastMessage(`Error: ${errorStr}`);
+      setTimeout(() => setToastMessage(null), 4000);
     } finally {
       setActionLoading(false);
     }
@@ -102,8 +106,12 @@ export const CapacityAlertsSection: React.FC<Props> = ({ hospitalId }) => {
         setSelectedAlertForModal((prev) => (prev ? { ...prev, status: 'ACKNOWLEDGED' } : null));
       }
       fetchAlerts();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to acknowledge alert:', err);
+      const detail = err.response?.data?.detail;
+      const errorStr = typeof detail === 'string' ? detail : (err.message || 'Failed to acknowledge alert.');
+      setToastMessage(`Error: ${errorStr}`);
+      setTimeout(() => setToastMessage(null), 4000);
     } finally {
       setActionLoading(false);
     }
