@@ -1,5 +1,5 @@
 import { apiClient } from './api';
-import { HospitalCapacity, OccupancyEventListResponse, WardCapacity } from '../types';
+import { CapacityAlertSummary, HospitalCapacity, OccupancyEventListResponse, WardCapacity } from '../types';
 
 // ── Capacity ────────────────────────────────────────────────────────────────
 
@@ -81,8 +81,9 @@ export const getCapacityAlerts = async (params?: { hospital_id?: number; ward_id
   return data;
 };
 
-export const getCapacityAlertSummary = async (params?: { hospital_id?: number }) => {
-  const { data } = await apiClient.get('/alerts/summary', { params });
+export const getCapacityAlertSummary = async (params?: { hospital_id?: number | null }): Promise<CapacityAlertSummary> => {
+  const queryParams = params?.hospital_id ? { hospital_id: params.hospital_id } : undefined;
+  const { data } = await apiClient.get<CapacityAlertSummary>('/alerts/summary', { params: queryParams });
   return data;
 };
 

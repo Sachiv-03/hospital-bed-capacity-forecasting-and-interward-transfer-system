@@ -769,3 +769,89 @@ export interface PatientDestinationRecommendationResponse {
   verification_required_statement: string;
 }
 
+// ── Phase 13 Management Analytics Types ─────────────────────────────────────
+
+export interface ManagementFreshness {
+  occupancy_last_updated?: string | null;
+  forecast_last_updated?: string | null;
+  alerts_last_evaluated?: string | null;
+  reporting_timestamp: string;
+}
+
+export interface ManagementOverviewMetrics {
+  total_capacity: number;
+  operational_beds: number;
+  occupied_beds: number;
+  available_beds: number;
+  occupancy_rate: number;
+  status: CapacityStatus | string;
+  active_high_severity_alerts: number;
+  total_active_alerts: number;
+  unacknowledged_alerts: number;
+  wards_at_elevated_risk: number;
+  total_wards: number;
+  pending_transfer_requests: number;
+  pending_transfer_recommendations: number;
+  approved_transfers: number;
+  completed_transfers: number;
+}
+
+export interface ManagementWardRiskItem {
+  ward_id: number;
+  ward_name: string;
+  ward_type: string;
+  total_beds: number;
+  current_occupancy_percentage: number;
+  predicted_peak_occupancy_percentage: number;
+  risk_level: string;
+  threshold_crossing_date?: string | null;
+  days_to_threshold?: number | null;
+  data_quality_warning?: string | null;
+}
+
+export interface ManagementRiskSummary {
+  critical_risk_wards: ManagementWardRiskItem[];
+  high_risk_wards: ManagementWardRiskItem[];
+  moderate_risk_wards: ManagementWardRiskItem[];
+  normal_risk_wards: ManagementWardRiskItem[];
+  unreliable_or_missing_data_wards: ManagementWardRiskItem[];
+}
+
+export interface WardTransferCountItem {
+  ward_id: number;
+  ward_name: string;
+  transfers_out_count: number;
+  transfers_in_count: number;
+}
+
+export interface ManagementTransferActivity {
+  by_status: Record<string, number>;
+  ward_transfer_pressure: WardTransferCountItem[];
+  pending_requests_count: number;
+  pending_recommendations_count: number;
+}
+
+export interface ManagementDataQualitySummary {
+  total_observations?: number;
+  health_score?: number;
+  data_frequency?: string;
+  earliest_observation_date?: string | null;
+  latest_observation_date?: string | null;
+  missing_dates?: number;
+}
+
+export interface ManagementAnalyticsResponse {
+  hospital_id: number;
+  hospital_name: string;
+  selected_ward_id?: number | null;
+  selected_ward_name?: string | null;
+  selected_horizon: number;
+  freshness: ManagementFreshness;
+  overview_metrics: ManagementOverviewMetrics;
+  ward_occupancy_breakdown: WardCapacity[];
+  risk_summary: ManagementRiskSummary;
+  transfer_activity: ManagementTransferActivity;
+  data_quality: ManagementDataQualitySummary;
+}
+
+

@@ -148,12 +148,8 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="analytics"
           element={
-            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor']}>
-              <GenericPage
-                title="Operational Analytics"
-                description="Hospital length-of-stay (LOS) distributions, bottleneck indicators, and throughput metrics."
-                moduleName="Operational Analytics"
-              />
+            <RoleGuard allowedRoles={['super_admin', 'admin', 'doctor', 'nurse', 'receptionist']}>
+              <DashboardPage />
             </RoleGuard>
           }
         />

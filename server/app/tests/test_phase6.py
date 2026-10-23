@@ -3,23 +3,27 @@ Phase 6 Stage 1 — Test Suite
 Tests: Bed model, event processing, idempotency, capacity, multi-hospital isolation,
 transaction safety, and the ingestion API.
 """
-import pytest
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.api.deps import get_db
 from app.database.database import Base
 from app.main import app
-from app.api.deps import get_db
-from app.models.hospital import Hospital, HospitalStatus
-from app.models.ward import Ward, WardType, WardStatus
 from app.models.bed import Bed, BedStatus, BedType
-from app.models.occupancy_event import OccupancyEvent
-from app.services.event_processor import EventProcessor
+from app.models.hospital import Hospital, HospitalStatus
+from app.models.ward import Ward, WardStatus, WardType
+from app.schemas.occupancy_event import (
+    EventSourceEnum,
+    EventTypeEnum,
+    OccupancyEventIngest,
+)
 from app.services.capacity_service import CapacityService
-from app.schemas.occupancy_event import OccupancyEventIngest, EventTypeEnum, EventSourceEnum
+from app.services.event_processor import EventProcessor
 
 # ── In-memory SQLite for isolated tests ──────────────────────────────────────
 SQLITE_URL = "sqlite:///./test_phase6.db"
@@ -91,14 +95,14 @@ def make_bed(db, hospital: Hospital, ward: Ward, number="ICU-01", status=BedStat
     return bed
 
 
-def make_event_payload(hospital_id: int, ward_id: int, bed_id: int, event_type: str, event_id: str = None):
+def make_event_payload(hospital_id: int, ward_id: int, bed_id: int, event_type: str, event_id: str | None = None):
     return OccupancyEventIngest(
         event_id=event_id or f"TEST-{uuid.uuid4().hex[:12]}",
         hospital_id=hospital_id,
         ward_id=ward_id,
         bed_id=bed_id,
         event_type=EventTypeEnum(event_type),
-        event_time=datetime.utcnow(),
+        event_time=datetime.now(UTC),
         source=EventSourceEnum.SIMULATOR,
     )
 
@@ -244,7 +248,7 @@ def test_cross_hospital_event_rejected(db):
     from fastapi import HTTPException
     h1 = make_hospital(db, "ISO1")
     h2 = make_hospital(db, "ISO2")
-    w1 = make_ward(db, h1, "ICU-H1")
+    make_ward(db, h1, "ICU-H1")
     w2 = make_ward(db, h2, "ICU-H2")
     bed2 = make_bed(db, h2, w2, "ISO-B1", BedStatus.AVAILABLE.value)
     db.commit()

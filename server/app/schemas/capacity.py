@@ -164,3 +164,89 @@ class ManualSnapshotGenerateResponse(BaseModel):
     snapshots_created: int
     hospitals_processed: int
     wards_processed: int
+
+
+# ── Phase 13 Management Analytics Dashboard Schemas ──────────────────────────
+
+class ManagementFreshness(BaseModel):
+    occupancy_last_updated: Optional[str] = None
+    forecast_last_updated: Optional[str] = None
+    alerts_last_evaluated: Optional[str] = None
+    reporting_timestamp: str
+
+
+class ManagementOverviewMetrics(BaseModel):
+    total_capacity: int = Field(default=0, description="Total physical bed capacity")
+    operational_beds: int = Field(default=0, description="Operational capacity (occupied + available)")
+    occupied_beds: int = Field(default=0, description="Currently occupied beds")
+    available_beds: int = Field(default=0, description="Currently available beds")
+    occupancy_rate: float = Field(default=0.0, description="Current occupancy percentage")
+    status: str = Field(default="NORMAL", description="Capacity status: NORMAL | WARNING | HIGH | CRITICAL")
+    active_high_severity_alerts: int = Field(default=0, description="Count of active HIGH and CRITICAL alerts")
+    total_active_alerts: int = Field(default=0, description="Total active alerts count")
+    unacknowledged_alerts: int = Field(default=0, description="Unacknowledged alerts count")
+    wards_at_elevated_risk: int = Field(default=0, description="Count of wards at HIGH or CRITICAL predicted risk")
+    total_wards: int = Field(default=0, description="Total active wards")
+    pending_transfer_requests: int = Field(default=0, description="Pending patient transfer requests (REQUESTED)")
+    pending_transfer_recommendations: int = Field(default=0, description="Pending transfer recommendations")
+    approved_transfers: int = Field(default=0, description="Approved transfers")
+    completed_transfers: int = Field(default=0, description="Completed transfers")
+
+
+class ManagementWardRiskItem(BaseModel):
+    ward_id: int
+    ward_name: str
+    ward_type: str = ""
+    total_beds: int = 0
+    current_occupancy_percentage: float = 0.0
+    predicted_peak_occupancy_percentage: float = 0.0
+    risk_level: str = "NORMAL"
+    threshold_crossing_date: Optional[str] = None
+    days_to_threshold: Optional[int] = None
+    data_quality_warning: Optional[str] = None
+
+
+class ManagementRiskSummary(BaseModel):
+    critical_risk_wards: List[ManagementWardRiskItem] = Field(default_factory=list)
+    high_risk_wards: List[ManagementWardRiskItem] = Field(default_factory=list)
+    moderate_risk_wards: List[ManagementWardRiskItem] = Field(default_factory=list)
+    normal_risk_wards: List[ManagementWardRiskItem] = Field(default_factory=list)
+    unreliable_or_missing_data_wards: List[ManagementWardRiskItem] = Field(default_factory=list)
+
+
+class WardTransferCountItem(BaseModel):
+    ward_id: int
+    ward_name: str
+    transfers_out_count: int = 0
+    transfers_in_count: int = 0
+
+
+class ManagementTransferActivity(BaseModel):
+    by_status: dict = Field(default_factory=dict, description="Counts by TransferStatus")
+    ward_transfer_pressure: List[WardTransferCountItem] = Field(default_factory=list)
+    pending_requests_count: int = 0
+    pending_recommendations_count: int = 0
+
+
+class ManagementDataQualitySummary(BaseModel):
+    total_observations: Optional[int] = 0
+    health_score: Optional[float] = 100.0
+    data_frequency: Optional[str] = "DAILY"
+    earliest_observation_date: Optional[str] = None
+    latest_observation_date: Optional[str] = None
+    missing_dates: Optional[int] = 0
+
+
+class ManagementAnalyticsResponse(BaseModel):
+    hospital_id: int
+    hospital_name: str
+    selected_ward_id: Optional[int] = None
+    selected_ward_name: Optional[str] = None
+    selected_horizon: int = 7
+    freshness: ManagementFreshness
+    overview_metrics: ManagementOverviewMetrics
+    ward_occupancy_breakdown: List[WardCapacityResponse] = Field(default_factory=list)
+    risk_summary: ManagementRiskSummary
+    transfer_activity: ManagementTransferActivity
+    data_quality: ManagementDataQualitySummary
+

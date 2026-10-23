@@ -1,7 +1,16 @@
+import {
+  Activity,
+  AlertCircle,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Lock,
+  Mail,
+  ShieldCheck,
+} from 'lucide-react';
 import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Activity, Lock, Mail, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
@@ -32,7 +41,9 @@ export const LoginPage: React.FC = () => {
       navigate(from, { replace: true });
     } catch (err: unknown) {
       console.error('Login failed:', err);
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Invalid email credentials or password.';
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'Invalid email credentials or password.';
       setError(msg);
     } finally {
       setLoading(false);
@@ -49,7 +60,7 @@ export const LoginPage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-sky-700 to-indigo-800 dark:from-sky-400 dark:to-indigo-300 bg-clip-text text-transparent">
-              PulseCapacity AI
+              CareFlow
             </h1>
             <p className="text-xs uppercase font-bold tracking-widest text-slate-400 dark:text-slate-500 mt-1">
               Enterprise Hospital Command Center
@@ -130,7 +141,10 @@ export const LoginPage: React.FC = () => {
               onChange={(e) => setRememberMe(e.target.checked)}
               className="w-4 h-4 text-sky-600 rounded border-slate-300 dark:border-slate-700 focus:ring-sky-500"
             />
-            <label htmlFor="rememberMe" className="ml-2 text-xs font-medium text-slate-600 dark:text-slate-400">
+            <label
+              htmlFor="rememberMe"
+              className="ml-2 text-xs font-medium text-slate-600 dark:text-slate-400"
+            >
               Remember me on this device
             </label>
           </div>

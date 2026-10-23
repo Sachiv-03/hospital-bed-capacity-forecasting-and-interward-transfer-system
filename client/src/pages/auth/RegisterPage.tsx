@@ -52,7 +52,7 @@ export const RegisterPage: React.FC = () => {
             <Activity className="w-7 h-7 stroke-[2.5]" />
           </div>
           <h1 className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-sky-700 to-indigo-800 dark:from-sky-400 dark:to-indigo-300 bg-clip-text text-transparent">
-            PulseCapacity AI
+            CareFlow AI
           </h1>
           <h2 className="text-base font-bold text-slate-800 dark:text-slate-200">
             Register Hospital Staff Account

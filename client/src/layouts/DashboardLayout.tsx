@@ -85,9 +85,12 @@ export const DashboardLayout: React.FC = () => {
   const [unreadAlerts, setUnreadAlerts] = useState<number>(0);
 
   useEffect(() => {
+    if (!user) return;
     const fetchBadge = async () => {
       try {
-        const summary = await getCapacityAlertSummary({ hospital_id: user?.hospital_id });
+        const summary = await getCapacityAlertSummary(
+          user.hospital_id ? { hospital_id: user.hospital_id } : undefined
+        );
         setUnreadAlerts(summary.unacknowledged_count || summary.total_active || 0);
       } catch {
         // Ignore background badge fetch errors
@@ -96,7 +99,7 @@ export const DashboardLayout: React.FC = () => {
     fetchBadge();
     const timer = setInterval(fetchBadge, 30_000);
     return () => clearInterval(timer);
-  }, [user?.hospital_id]);
+  }, [user?.hospital_id, user]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -167,7 +170,7 @@ export const DashboardLayout: React.FC = () => {
             </div>
             <div className="hidden sm:block">
               <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-sky-700 to-indigo-800 dark:from-sky-400 dark:to-indigo-300 bg-clip-text text-transparent">
-                PulseCapacity AI
+                CareFlow AI
               </span>
               <span className="block text-[10px] uppercase font-bold tracking-widest text-slate-400 dark:text-slate-500">
                 Hospital Command Center

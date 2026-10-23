@@ -12,6 +12,7 @@ from app.schemas.capacity import (
     OccupancySummaryResponse,
     OccupancySnapshotListResponse,
     ManualSnapshotGenerateResponse,
+    ManagementAnalyticsResponse,
 )
 from app.services.capacity_service import CapacityService
 from app.services.snapshot_service import SnapshotService
@@ -33,6 +34,28 @@ def resolve_hospital_id(current_user: User, requested_hospital_id: Optional[int]
     if requested_hospital_id is not None and requested_hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cross-hospital access forbidden")
     return current_user.hospital_id
+
+
+@router.get(
+    "/management-analytics",
+    response_model=ManagementAnalyticsResponse,
+    summary="Get integrated management analytics dashboard payload",
+    description="Returns authorized management overview metrics, ward breakdowns, SARIMA forecast risk summaries, alerts, transfer activity, and data quality.",
+)
+def get_management_analytics(
+    hospital_id: Optional[int] = Query(None, description="SUPER_ADMIN override"),
+    ward_id: Optional[int] = Query(None, description="Optional ward filter"),
+    horizon: int = Query(7, ge=1, le=30, description="Forecast horizon in days"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    resolved_hid = resolve_hospital_id(current_user, hospital_id)
+    return CapacityService.get_management_analytics(
+        db=db,
+        hospital_id=resolved_hid,
+        ward_id=ward_id,
+        horizon=horizon,
+    )
 
 
 @router.get("/hospital", response_model=HospitalCapacityResponse, summary="Get current hospital capacity")

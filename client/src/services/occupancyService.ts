@@ -1,5 +1,5 @@
 import { apiClient } from './api';
-import { HospitalCapacity, WardCapacity } from '../types';
+import { HospitalCapacity, WardCapacity, ManagementAnalyticsResponse } from '../types';
 
 export interface OccupancySummary {
   hospital_id: number;
@@ -77,3 +77,13 @@ export const triggerOccupancySnapshot = async (hospitalId?: number): Promise<{ s
   const response = await apiClient.post<{ snapshots_created: number }>('/occupancy/snapshots', null, { params });
   return response.data;
 };
+
+export const getManagementAnalytics = async (params?: {
+  hospital_id?: number;
+  ward_id?: number;
+  horizon?: number;
+}): Promise<ManagementAnalyticsResponse> => {
+  const response = await apiClient.get<ManagementAnalyticsResponse>('/occupancy/management-analytics', { params });
+  return response.data;
+};
+

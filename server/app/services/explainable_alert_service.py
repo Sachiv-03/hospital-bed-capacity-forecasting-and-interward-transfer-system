@@ -323,6 +323,8 @@ class ExplainableAlertService:
             if gen_at:
                 try:
                     dt_gen = datetime.fromisoformat(gen_at) if isinstance(gen_at, str) else gen_at
+                    if dt_gen.tzinfo is None:
+                        dt_gen = dt_gen.replace(tzinfo=timezone.utc)
                     age_hours = (now - dt_gen).total_seconds() / 3600.0
                     if age_hours > 48.0:
                         data_quality_notes.append(f"Forecast projection is {age_hours:.1f} hours old (> 48h staleness threshold).")

@@ -9,8 +9,24 @@ from app.models.bed import Bed, BedStatus
 from app.models.hospital import Hospital
 from app.models.ward import Ward, WardStatus
 from app.models.admission import Admission, AdmissionStatus
+from app.models.capacity_alert import CapacityAlert, AlertSeverity, AlertStatus
+from app.models.transfer import Transfer, TransferStatus
+from app.models.transfer_recommendation import TransferRecommendation, RecommendationStatus
+from app.models.occupancy_snapshot import OccupancySnapshot
+from app.models.bed_capacity_forecast import BedCapacityForecast
 from app.schemas.capacity import (
-    HospitalCapacityResponse, WardCapacityResponse, OccupancySummaryResponse, get_capacity_status
+    HospitalCapacityResponse,
+    WardCapacityResponse,
+    OccupancySummaryResponse,
+    get_capacity_status,
+    ManagementAnalyticsResponse,
+    ManagementFreshness,
+    ManagementOverviewMetrics,
+    ManagementWardRiskItem,
+    ManagementRiskSummary,
+    WardTransferCountItem,
+    ManagementTransferActivity,
+    ManagementDataQualitySummary,
 )
 
 logger = logging.getLogger(__name__)
@@ -203,3 +219,226 @@ class CapacityService:
             discharges_today=cap.discharges_today,
             timestamp=datetime.utcnow().isoformat()
         )
+
+    @staticmethod
+    def get_management_analytics(
+        db: Session,
+        hospital_id: int,
+        ward_id: Optional[int] = None,
+        horizon: int = 7,
+    ) -> ManagementAnalyticsResponse:
+        """
+        Phase 13: Management Analytics Dashboard aggregation.
+        Aggregates verified live occupancy, SARIMA forecasts, capacity-risk classifications,
+        alerts, inter-ward transfer activity, and data quality into an authorized report.
+        """
+        hospital = db.query(Hospital).filter(Hospital.id == hospital_id).first()
+        if not hospital:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Hospital not found")
+
+        selected_ward = None
+        if ward_id is not None:
+            selected_ward = db.query(Ward).filter(Ward.id == ward_id).first()
+            if not selected_ward:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ward not found")
+            if selected_ward.hospital_id != hospital_id:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Ward does not belong to requested hospital")
+
+        # 1. Ward capacities
+        all_ward_caps = CapacityService.get_all_ward_capacities(db, hospital_id)
+        if selected_ward:
+            target_caps = [w for w in all_ward_caps if w.ward_id == selected_ward.id]
+        else:
+            target_caps = all_ward_caps
+
+        total_capacity = sum(w.total_beds for w in target_caps)
+        operational_beds = sum(w.operational_beds for w in target_caps)
+        occupied_beds = sum(w.occupied_beds for w in target_caps)
+        available_beds = sum(w.available_beds for w in target_caps)
+        occupancy_rate = round((occupied_beds / operational_beds * 100), 2) if operational_beds > 0 else 0.0
+        cap_status = get_capacity_status(occupancy_rate)
+
+        # 2. Alerts Summary
+        alert_query = db.query(CapacityAlert).filter(CapacityAlert.hospital_id == hospital_id)
+        if selected_ward:
+            alert_query = alert_query.filter(CapacityAlert.ward_id == selected_ward.id)
+
+        all_alerts = alert_query.all()
+        active_alerts = [a for a in all_alerts if a.status in (AlertStatus.ACTIVE.value, AlertStatus.ACKNOWLEDGED.value)]
+        high_critical_alerts = [
+            a for a in active_alerts
+            if a.severity in (AlertSeverity.HIGH.value, AlertSeverity.CRITICAL.value)
+        ]
+        unacknowledged_alerts = [a for a in active_alerts if a.status == AlertStatus.ACTIVE.value or a.acknowledged_at is None]
+
+        # 3. Inter-Ward Transfers Activity
+        transfer_query = db.query(Transfer).filter(Transfer.hospital_id == hospital_id)
+        if selected_ward:
+            transfer_query = transfer_query.filter(
+                (Transfer.source_ward_id == selected_ward.id) | (Transfer.destination_ward_id == selected_ward.id)
+            )
+        transfers = transfer_query.all()
+
+        by_status = {
+            TransferStatus.REQUESTED.value: 0,
+            TransferStatus.APPROVED.value: 0,
+            TransferStatus.REJECTED.value: 0,
+            TransferStatus.COMPLETED.value: 0,
+            TransferStatus.CANCELLED.value: 0,
+        }
+        for t in transfers:
+            if t.status in by_status:
+                by_status[t.status] += 1
+            else:
+                by_status[t.status] = 1
+
+        # Recommendations pending
+        rec_query = db.query(TransferRecommendation).filter(
+            TransferRecommendation.hospital_id == hospital_id,
+            TransferRecommendation.status == RecommendationStatus.PENDING.value
+        )
+        if selected_ward:
+            rec_query = rec_query.filter(
+                (TransferRecommendation.source_ward_id == selected_ward.id) | (TransferRecommendation.destination_ward_id == selected_ward.id)
+            )
+        pending_recs = rec_query.count()
+
+        # Transfers count by ward
+        ward_transfer_pressure = []
+        for w in (all_ward_caps if not selected_ward else target_caps):
+            out_cnt = sum(1 for t in transfers if t.source_ward_id == w.ward_id and t.status in (TransferStatus.REQUESTED.value, TransferStatus.APPROVED.value, TransferStatus.COMPLETED.value))
+            in_cnt = sum(1 for t in transfers if t.destination_ward_id == w.ward_id and t.status in (TransferStatus.REQUESTED.value, TransferStatus.APPROVED.value, TransferStatus.COMPLETED.value))
+            ward_transfer_pressure.append(WardTransferCountItem(
+                ward_id=w.ward_id,
+                ward_name=w.ward_name,
+                transfers_out_count=out_cnt,
+                transfers_in_count=in_cnt,
+            ))
+
+        # 4. Forecast & Risk Categorization
+        critical_risk_wards = []
+        high_risk_wards = []
+        moderate_risk_wards = []
+        normal_risk_wards = []
+        unreliable_wards = []
+
+        try:
+            from app.services.forecasting.forecast_service import ForecastService
+            hospital_forecast = ForecastService.get_hospital_forecast(db, hospital_id=hospital_id, horizon=horizon)
+            ward_forecast_map = {ws.ward_id: ws for ws in hospital_forecast.ward_summaries}
+        except Exception:
+            ward_forecast_map = {}
+
+        for w in (all_ward_caps if not selected_ward else target_caps):
+            wf = ward_forecast_map.get(w.ward_id)
+            if wf:
+                predicted_peak = float(wf.max_7day_occupancy_percentage)
+                risk_lvl = wf.max_risk_level
+                item = ManagementWardRiskItem(
+                    ward_id=w.ward_id,
+                    ward_name=w.ward_name,
+                    ward_type=w.ward_type,
+                    total_beds=w.total_beds,
+                    current_occupancy_percentage=w.occupancy_percentage,
+                    predicted_peak_occupancy_percentage=predicted_peak,
+                    risk_level=risk_lvl,
+                )
+                if risk_lvl == "CRITICAL" or predicted_peak >= 95.0:
+                    critical_risk_wards.append(item)
+                elif risk_lvl == "HIGH" or predicted_peak >= 85.0:
+                    high_risk_wards.append(item)
+                elif risk_lvl == "MODERATE" or predicted_peak >= 70.0:
+                    moderate_risk_wards.append(item)
+                else:
+                    normal_risk_wards.append(item)
+            else:
+                item = ManagementWardRiskItem(
+                    ward_id=w.ward_id,
+                    ward_name=w.ward_name,
+                    ward_type=w.ward_type,
+                    total_beds=w.total_beds,
+                    current_occupancy_percentage=w.occupancy_percentage,
+                    predicted_peak_occupancy_percentage=w.occupancy_percentage,
+                    risk_level=w.status,
+                    data_quality_warning="No forecast run available for this horizon",
+                )
+                if w.status == "CRITICAL":
+                    critical_risk_wards.append(item)
+                elif w.status in ("HIGH", "WARNING"):
+                    high_risk_wards.append(item)
+                else:
+                    normal_risk_wards.append(item)
+
+        wards_at_elevated_risk = len(critical_risk_wards) + len(high_risk_wards)
+
+        # 5. Freshness Timestamps
+        latest_snap = db.query(OccupancySnapshot).filter(OccupancySnapshot.hospital_id == hospital_id).order_by(OccupancySnapshot.snapshot_time.desc()).first()
+        latest_fc = db.query(BedCapacityForecast).filter(BedCapacityForecast.hospital_id == hospital_id).order_by(BedCapacityForecast.generated_at.desc()).first()
+        latest_al = db.query(CapacityAlert).filter(CapacityAlert.hospital_id == hospital_id).order_by(CapacityAlert.created_at.desc()).first()
+
+        now_utc = datetime.utcnow()
+        freshness = ManagementFreshness(
+            occupancy_last_updated=latest_snap.snapshot_time.isoformat() if latest_snap else (now_utc.isoformat() if all_ward_caps else None),
+            forecast_last_updated=latest_fc.generated_at.isoformat() if latest_fc and latest_fc.generated_at else None,
+            alerts_last_evaluated=latest_al.created_at.isoformat() if latest_al and latest_al.created_at else None,
+            reporting_timestamp=now_utc.isoformat(),
+        )
+
+        # 6. Data Quality
+        try:
+            from app.services.historical_service import HistoricalService
+            dq = HistoricalService.get_data_quality_report(db, hospital_id=hospital_id)
+            data_quality_summary = ManagementDataQualitySummary(
+                total_observations=dq.get("total_observations") or dq.get("total_snapshots", 0),
+                health_score=float(dq.get("health_score", 100.0)),
+                data_frequency=dq.get("data_frequency", "DAILY"),
+                earliest_observation_date=dq.get("earliest_observation_date"),
+                latest_observation_date=dq.get("latest_observation_date"),
+                missing_dates=dq.get("missing_dates", 0),
+            )
+        except Exception:
+            data_quality_summary = ManagementDataQualitySummary()
+
+        overview_metrics = ManagementOverviewMetrics(
+            total_capacity=total_capacity,
+            operational_beds=operational_beds,
+            occupied_beds=occupied_beds,
+            available_beds=available_beds,
+            occupancy_rate=occupancy_rate,
+            status=cap_status,
+            active_high_severity_alerts=len(high_critical_alerts),
+            total_active_alerts=len(active_alerts),
+            unacknowledged_alerts=len(unacknowledged_alerts),
+            wards_at_elevated_risk=wards_at_elevated_risk,
+            total_wards=len(all_ward_caps),
+            pending_transfer_requests=by_status.get(TransferStatus.REQUESTED.value, 0),
+            pending_transfer_recommendations=pending_recs,
+            approved_transfers=by_status.get(TransferStatus.APPROVED.value, 0),
+            completed_transfers=by_status.get(TransferStatus.COMPLETED.value, 0),
+        )
+
+        return ManagementAnalyticsResponse(
+            hospital_id=hospital.id,
+            hospital_name=hospital.name,
+            selected_ward_id=selected_ward.id if selected_ward else None,
+            selected_ward_name=selected_ward.name if selected_ward else None,
+            selected_horizon=horizon,
+            freshness=freshness,
+            overview_metrics=overview_metrics,
+            ward_occupancy_breakdown=all_ward_caps,
+            risk_summary=ManagementRiskSummary(
+                critical_risk_wards=critical_risk_wards,
+                high_risk_wards=high_risk_wards,
+                moderate_risk_wards=moderate_risk_wards,
+                normal_risk_wards=normal_risk_wards,
+                unreliable_or_missing_data_wards=unreliable_wards,
+            ),
+            transfer_activity=ManagementTransferActivity(
+                by_status=by_status,
+                ward_transfer_pressure=ward_transfer_pressure,
+                pending_requests_count=by_status.get(TransferStatus.REQUESTED.value, 0),
+                pending_recommendations_count=pending_recs,
+            ),
+            data_quality=data_quality_summary,
+        )
+
