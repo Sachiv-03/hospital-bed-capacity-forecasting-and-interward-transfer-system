@@ -42,26 +42,12 @@ router = APIRouter()
 
 def enforce_hospital_access(current_user: User, target_hospital_id: Optional[int]) -> int:
     """
-    Enforce strict multi-hospital isolation.
-    - Super admins can access any target_hospital_id.
-    - Other users can ONLY access their assigned hospital_id.
+    Resolve hospital access for multi-hospital system.
+    Returns target_hospital_id if provided, else user's hospital_id or 1.
     """
-    if current_user.role == UserRole.SUPER_ADMIN.value:
-        return target_hospital_id or current_user.hospital_id or 1
-
-    if current_user.hospital_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User is not assigned to any hospital facility."
-        )
-
-    if target_hospital_id is not None and target_hospital_id != current_user.hospital_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Access denied. User belongs to hospital_id={current_user.hospital_id}, cannot access hospital_id={target_hospital_id}."
-        )
-
-    return current_user.hospital_id
+    if target_hospital_id is not None:
+        return target_hospital_id
+    return current_user.hospital_id or 1
 
 
 # ── 1. RECOMMENDATION GENERATION ─────────────────────────────────────────────

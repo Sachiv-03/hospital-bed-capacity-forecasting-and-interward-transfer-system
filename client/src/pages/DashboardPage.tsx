@@ -145,15 +145,17 @@ export const DashboardPage: React.FC = () => {
   const activeHospitalName =
     currentHospital?.name || user?.hospital_name || (isSuperAdmin ? 'All Hospitals (Admin)' : 'Apollo Medical Center');
 
-  // Load all available hospitals for all users once
+  // Load super admin hospitals list once
   useEffect(() => {
-    hospitalService.getHospitals({ limit: 100 })
-      .then((res) => setHospitals(res.items))
-      .catch((err) => console.error('Failed to load hospitals list:', err));
+    if (isSuperAdmin) {
+      hospitalService.getHospitals({ limit: 100 })
+        .then((res) => setHospitals(res.items))
+        .catch((err) => console.error('Failed to load hospitals list:', err));
+    }
     fetchHealthStatus()
       .then(setHealth)
       .catch(() => setHealth({ status: 'healthy', service: 'Hospital Bed API', version: '1.0', database: 'connected' }));
-  }, []);
+  }, [isSuperAdmin]);
 
   // Load wards whenever hospitalId changes
   useEffect(() => {
@@ -525,12 +527,12 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-          {/* Hospital Filter (Available for All Roles) */}
+          {/* Hospital Filter (Active only for Super Admin) */}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
               Hospital Facility
             </label>
-            {hospitals.length > 0 ? (
+            {isSuperAdmin && hospitals.length > 0 ? (
               <select
                 value={selectedHospitalId}
                 onChange={(e) => {

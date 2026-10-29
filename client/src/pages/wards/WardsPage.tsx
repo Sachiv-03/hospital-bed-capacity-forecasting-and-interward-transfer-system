@@ -92,17 +92,18 @@ export const WardsPage: React.FC = () => {
   const [deactivatingWard, setDeactivatingWard] = useState<Ward | null>(null);
   const [isDeactivating, setIsDeactivating] = useState<boolean>(false);
 
-  const selectedHospital = hospitals.find((h) => h.id === selectedHospitalId);
   const activeHospitalName =
-    selectedHospital?.name || user?.hospital_name || 'All Hospitals';
+    user?.hospital_name || (isSuperAdmin ? 'All Hospitals' : 'Apollo Medical Center');
 
-  // Load all hospital options for all users
+  // Load Super Admin hospital options
   useEffect(() => {
-    hospitalService
-      .getHospitals({ limit: 100 })
-      .then((res) => setHospitals(res.items))
-      .catch((err) => console.error('Failed to load hospitals list:', err));
-  }, []);
+    if (isSuperAdmin) {
+      hospitalService
+        .getHospitals({ limit: 100 })
+        .then((res) => setHospitals(res.items))
+        .catch((err) => console.error('Failed to load hospitals list:', err));
+    }
+  }, [isSuperAdmin]);
 
   // Debounce search input
   useEffect(() => {
@@ -435,8 +436,8 @@ export const WardsPage: React.FC = () => {
             />
           </div>
 
-          {/* Hospital Selector Filter */}
-          {hospitals.length > 0 && (
+          {/* Super Admin Hospital Selector Filter */}
+          {isSuperAdmin && (
             <div>
               <select
                 value={selectedHospitalId || ''}
@@ -447,7 +448,7 @@ export const WardsPage: React.FC = () => {
                 }}
                 className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-all font-semibold"
               >
-                <option value="">All Hospitals</option>
+                <option value="">All Hospitals (Super Admin)</option>
                 {hospitals.map((h) => (
                   <option key={h.id} value={h.id}>
                     {h.name} ({h.code})

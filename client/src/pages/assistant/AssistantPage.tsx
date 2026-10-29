@@ -371,7 +371,7 @@ export const AssistantPage: React.FC = () => {
                 {/* Role header & timestamp */}
                 <div className="flex items-center gap-2 mb-1 px-1 text-[11px] text-slate-400">
                   <span className="font-semibold text-slate-600 dark:text-slate-300">
-                    {isUser ? user?.full_name || 'Authorized Staff' : 'CareFlow Assistant'}
+                    {isUser ? user?.full_name || 'Authorized Staff' : 'CareFlow AI Assistant'}
                   </span>
                   <span>•</span>
                   <span>{msg.timestamp}</span>
