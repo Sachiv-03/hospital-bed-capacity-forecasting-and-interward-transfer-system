@@ -1,15 +1,14 @@
-from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_roles
 from app.models.user import User, UserRole
 from app.schemas.hospital import (
     HospitalCreate,
-    HospitalUpdate,
-    HospitalResponse,
     HospitalListResponse,
+    HospitalResponse,
     HospitalStatusEnum,
+    HospitalUpdate,
 )
 from app.services.hospital_service import HospitalService
 
@@ -35,8 +34,12 @@ ALL_ROLES = [
 def list_hospitals(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(10, ge=1, le=100, description="Items per page"),
-    search: Optional[str] = Query(None, description="Search by name, code, city, or state"),
-    status: Optional[HospitalStatusEnum] = Query(None, description="Filter by status"),
+    search: str | None = Query(
+        None, description="Search by name, code, city, or state"
+    ),
+    status: HospitalStatusEnum | None = Query(
+        None, description="Filter by status"
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(SUPER_ADMIN_ONLY)),
 ):
@@ -67,7 +70,10 @@ def get_hospital(
         if current_user.hospital_id != hospital_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied. You can only view details for your assigned hospital."
+                detail=(
+                    "Access denied. You can only view details for your"
+                    " assigned hospital."
+                ),
             )
 
     return HospitalService.get_hospital_by_id(db=db, hospital_id=hospital_id)
@@ -101,7 +107,9 @@ def update_hospital(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(SUPER_ADMIN_ONLY)),
 ):
-    return HospitalService.update_hospital(db=db, hospital_id=hospital_id, hospital_in=hospital_in)
+    return HospitalService.update_hospital(
+        db=db, hospital_id=hospital_id, hospital_in=hospital_in
+    )
 
 
 @router.delete(
@@ -109,7 +117,10 @@ def update_hospital(
     response_model=HospitalResponse,
     status_code=status.HTTP_200_OK,
     summary="Deactivate Hospital",
-    description="Safely deactivates a hospital facility by setting status to INACTIVE. Requires SUPER_ADMIN role.",
+    description=(
+        "Safely deactivates a hospital facility by setting status to INACTIVE. "
+        "Requires SUPER_ADMIN role."
+    ),
 )
 def deactivate_hospital(
     hospital_id: int,
@@ -117,3 +128,22 @@ def deactivate_hospital(
     current_user: User = Depends(require_roles(SUPER_ADMIN_ONLY)),
 ):
     return HospitalService.deactivate_hospital(db=db, hospital_id=hospital_id)
+
+
+@router.delete(
+    "/{hospital_id}/permanent",
+    status_code=status.HTTP_200_OK,
+    summary="Delete Hospital Permanently",
+    description=(
+        "Permanently deletes a hospital facility and its associated records. "
+        "Requires SUPER_ADMIN role."
+    ),
+)
+def delete_hospital_permanent(
+    hospital_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(SUPER_ADMIN_ONLY)),
+):
+    return HospitalService.delete_hospital_permanently(
+        db=db, hospital_id=hospital_id
+    )

@@ -3,6 +3,7 @@ Phase 6 Stage 1 — Test Suite
 Tests: Bed model, event processing, idempotency, capacity, multi-hospital isolation,
 transaction safety, and the ingestion API.
 """
+
 import uuid
 from datetime import UTC, datetime
 
@@ -52,6 +53,7 @@ def db():
 def client(db):
     def override_get_db():
         yield db
+
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
@@ -60,8 +62,13 @@ def client(db):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def make_hospital(db, code_suffix="A") -> Hospital:
-    h = Hospital(name=f"Test Hospital {code_suffix}", code=f"TEST{code_suffix}", status=HospitalStatus.ACTIVE.value)
+    h = Hospital(
+        name=f"Test Hospital {code_suffix}",
+        code=f"TEST{code_suffix}",
+        status=HospitalStatus.ACTIVE.value,
+    )
     db.add(h)
     db.flush()
     return h
@@ -82,7 +89,13 @@ def make_ward(db, hospital: Hospital, ward_name="ICU") -> Ward:
     return w
 
 
-def make_bed(db, hospital: Hospital, ward: Ward, number="ICU-01", status=BedStatus.AVAILABLE.value) -> Bed:
+def make_bed(
+    db,
+    hospital: Hospital,
+    ward: Ward,
+    number="ICU-01",
+    status=BedStatus.AVAILABLE.value,
+) -> Bed:
     bed = Bed(
         hospital_id=hospital.id,
         ward_id=ward.id,
@@ -95,7 +108,13 @@ def make_bed(db, hospital: Hospital, ward: Ward, number="ICU-01", status=BedStat
     return bed
 
 
-def make_event_payload(hospital_id: int, ward_id: int, bed_id: int, event_type: str, event_id: str | None = None):
+def make_event_payload(
+    hospital_id: int,
+    ward_id: int,
+    bed_id: int,
+    event_type: str,
+    event_id: str | None = None,
+):
     return OccupancyEventIngest(
         event_id=event_id or f"TEST-{uuid.uuid4().hex[:12]}",
         hospital_id=hospital_id,
@@ -108,6 +127,7 @@ def make_event_payload(hospital_id: int, ward_id: int, bed_id: int, event_type: 
 
 
 # ── 1. MODEL TESTS ────────────────────────────────────────────────────────────
+
 
 def test_bed_belongs_to_ward_and_hospital(db):
     h = make_hospital(db, "MODEL1")
@@ -131,6 +151,7 @@ def test_bed_hospital_matches_ward_hospital(db):
 
 # ── 2. ADMISSION TESTS ────────────────────────────────────────────────────────
 
+
 def test_admission_available_bed_becomes_occupied(db):
     h = make_hospital(db, "ADM1")
     w = make_ward(db, h)
@@ -147,6 +168,7 @@ def test_admission_available_bed_becomes_occupied(db):
 
 def test_admission_occupied_bed_rejected(db):
     from fastapi import HTTPException
+
     h = make_hospital(db, "ADM2")
     w = make_ward(db, h)
     bed = make_bed(db, h, w, "ADM-02", BedStatus.OCCUPIED.value)
@@ -159,6 +181,7 @@ def test_admission_occupied_bed_rejected(db):
 
 
 # ── 3. DISCHARGE TESTS ────────────────────────────────────────────────────────
+
 
 def test_discharge_occupied_bed_becomes_available(db):
     h = make_hospital(db, "DIS1")
@@ -176,6 +199,7 @@ def test_discharge_occupied_bed_becomes_available(db):
 
 def test_discharge_available_bed_rejected(db):
     from fastapi import HTTPException
+
     h = make_hospital(db, "DIS2")
     w = make_ward(db, h)
     bed = make_bed(db, h, w, "DIS-02", BedStatus.AVAILABLE.value)
@@ -188,6 +212,7 @@ def test_discharge_available_bed_rejected(db):
 
 
 # ── 4. MAINTENANCE TESTS ──────────────────────────────────────────────────────
+
 
 def test_bed_maintenance_transition(db):
     h = make_hospital(db, "MAINT1")
@@ -219,6 +244,7 @@ def test_maintenance_bed_not_counted_as_available(db):
 
 # ── 5. DUPLICATE EVENT IDEMPOTENCY ───────────────────────────────────────────
 
+
 def test_duplicate_event_is_rejected(db):
     h = make_hospital(db, "DUP1")
     w = make_ward(db, h)
@@ -244,8 +270,10 @@ def test_duplicate_event_is_rejected(db):
 
 # ── 6. MULTI-HOSPITAL ISOLATION ───────────────────────────────────────────────
 
+
 def test_cross_hospital_event_rejected(db):
     from fastapi import HTTPException
+
     h1 = make_hospital(db, "ISO1")
     h2 = make_hospital(db, "ISO2")
     make_ward(db, h1, "ICU-H1")
@@ -262,6 +290,7 @@ def test_cross_hospital_event_rejected(db):
 
 def test_cross_ward_bed_rejected(db):
     from fastapi import HTTPException
+
     h = make_hospital(db, "ISO3")
     w1 = make_ward(db, h, "Ward-A")
     w2 = make_ward(db, h, "Ward-B")
@@ -276,6 +305,7 @@ def test_cross_ward_bed_rejected(db):
 
 
 # ── 7. CAPACITY CALCULATION ───────────────────────────────────────────────────
+
 
 def test_ward_capacity_calculation(db):
     h = make_hospital(db, "CAP1")
@@ -313,17 +343,22 @@ def test_hospital_capacity_aggregation(db):
 
 # ── 8. BED CLEANING & STATUS TRANSITIONS ─────────────────────────────────────
 
+
 def test_bed_cleaning_then_available(db):
     h = make_hospital(db, "CLN1")
     w = make_ward(db, h)
     bed = make_bed(db, h, w, "CLN-01", BedStatus.AVAILABLE.value)
     db.commit()
 
-    EventProcessor.process_event(db, make_event_payload(h.id, w.id, bed.id, "BED_CLEANING"))
+    EventProcessor.process_event(
+        db, make_event_payload(h.id, w.id, bed.id, "BED_CLEANING")
+    )
     db.refresh(bed)
     assert bed.status == BedStatus.CLEANING.value
 
-    EventProcessor.process_event(db, make_event_payload(h.id, w.id, bed.id, "BED_AVAILABLE"))
+    EventProcessor.process_event(
+        db, make_event_payload(h.id, w.id, bed.id, "BED_AVAILABLE")
+    )
     db.refresh(bed)
     assert bed.status == BedStatus.AVAILABLE.value
 
@@ -334,10 +369,14 @@ def test_reserved_then_released(db):
     bed = make_bed(db, h, w, "RES-01", BedStatus.AVAILABLE.value)
     db.commit()
 
-    EventProcessor.process_event(db, make_event_payload(h.id, w.id, bed.id, "BED_RESERVED"))
+    EventProcessor.process_event(
+        db, make_event_payload(h.id, w.id, bed.id, "BED_RESERVED")
+    )
     db.refresh(bed)
     assert bed.status == BedStatus.RESERVED.value
 
-    EventProcessor.process_event(db, make_event_payload(h.id, w.id, bed.id, "BED_RELEASED"))
+    EventProcessor.process_event(
+        db, make_event_payload(h.id, w.id, bed.id, "BED_RELEASED")
+    )
     db.refresh(bed)
     assert bed.status == BedStatus.AVAILABLE.value

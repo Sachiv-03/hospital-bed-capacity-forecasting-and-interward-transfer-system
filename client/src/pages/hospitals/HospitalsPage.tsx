@@ -18,6 +18,7 @@ import {
   MapPin,
   X,
   Loader2,
+  Trash2,
 } from 'lucide-react';
 
 export const HospitalsPage: React.FC = () => {
@@ -154,6 +155,24 @@ export const HospitalsPage: React.FC = () => {
       loadHospitals();
     } catch (err: unknown) {
       const msg = (err as AxiosError<{ detail?: string }>).response?.data?.detail || 'Failed to deactivate hospital.';
+      setToastMessage({ type: 'error', text: msg });
+    }
+  };
+
+  const handleDeletePermanent = async (h: Hospital) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to permanently delete hospital '${h.name}'?\n\nWARNING: This will permanently remove the hospital and all associated data. This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await hospitalService.deleteHospitalPermanent(h.id);
+      setToastMessage({ type: 'success', text: `Hospital '${h.name}' has been permanently deleted.` });
+      loadHospitals();
+    } catch (err: unknown) {
+      const msg = (err as AxiosError<{ detail?: string }>).response?.data?.detail || 'Failed to permanently delete hospital.';
       setToastMessage({ type: 'error', text: msg });
     }
   };
@@ -358,6 +377,13 @@ export const HospitalsPage: React.FC = () => {
                             <Power className="w-4 h-4" />
                           </button>
                         )}
+                        <button
+                          onClick={() => handleDeletePermanent(h)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 transition-colors"
+                          title="Delete Hospital"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>

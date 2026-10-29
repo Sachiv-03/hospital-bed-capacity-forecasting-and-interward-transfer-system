@@ -18,8 +18,10 @@ import {
   TransferOverviewStats,
   AuditLog,
   WardCapacity,
+  Hospital,
 } from '../../types';
 import { transferService } from '../../services/transferService';
+import { hospitalService } from '../../services/hospitalService';
 import { getWardsOccupancy } from '../../services/occupancyService';
 import { TransferRecommendationCard } from '../../components/transfers/TransferRecommendationCard';
 import { TransferRecommendationDetailModal } from '../../components/transfers/TransferRecommendationDetailModal';
@@ -30,7 +32,8 @@ import { cn } from '../../utils/cn';
 
 export const TransferDashboardPage: React.FC = () => {
   const { user } = useAuth();
-  const hospitalId = user?.hospital_id || 1;
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
+  const [selectedHospitalId, setSelectedHospitalId] = useState<number>(user?.hospital_id || 1);
 
   // Active Tab: 'PATIENT_TRANSFERS' | 'HISTORY' | 'RECOMMENDATIONS'
   const [activeTab, setActiveTab] = useState<'PATIENT_TRANSFERS' | 'HISTORY' | 'RECOMMENDATIONS'>('PATIENT_TRANSFERS');
@@ -56,17 +59,38 @@ export const TransferDashboardPage: React.FC = () => {
   const [showRulesModal, setShowRulesModal] = useState<boolean>(false);
   const [showAuditDrawer, setShowAuditDrawer] = useState<boolean>(false);
 
+  // Load available hospitals list
+  useEffect(() => {
+    hospitalService
+      .getHospitals({ limit: 100 })
+      .then((res) => {
+        const activeList = (res.items || []).filter((h) => h.status === 'ACTIVE');
+        setHospitals(activeList);
+        setSelectedHospitalId((prev) => {
+          if (user?.hospital_id && activeList.some((h) => h.id === user.hospital_id)) {
+            return user.hospital_id;
+          }
+          if (activeList.length > 0 && !activeList.some((h) => h.id === prev)) {
+            return activeList[0].id;
+          }
+          return prev;
+        });
+      })
+      .catch((err) => console.error('Failed to load hospitals:', err));
+  }, [user?.hospital_id]);
+
+  const currentHospital = hospitals.find((h) => h.id === selectedHospitalId);
+
   const fetchData = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
       const [transfersRes, wardsRes, recsData, statsData] = await Promise.all([
-        transferService.getPatientTransfers({ hospital_id: hospitalId, limit: 100 }),
-        getWardsOccupancy(hospitalId),
-        transferService.getRecommendations({ hospital_id: hospitalId }),
-        transferService.getOverviewStats(hospitalId),
+        transferService.getPatientTransfers({ hospital_id: selectedHospitalId, limit: 100 }),
+        getWardsOccupancy(selectedHospitalId),
+        transferService.getRecommendations({ hospital_id: selectedHospitalId }),
+        transferService.getOverviewStats(selectedHospitalId),
       ]);
-
 
       setPatientTransfers(transfersRes.items || []);
       setWardOccupancies(wardsRes || []);
@@ -78,11 +102,11 @@ export const TransferDashboardPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [hospitalId]);
+  }, [selectedHospitalId]);
 
   const fetchAuditLogs = async () => {
     try {
-      const logs = await transferService.getAuditLogs(hospitalId);
+      const logs = await transferService.getAuditLogs(selectedHospitalId);
       setAuditLogs(logs);
     } catch {
       // silent handle
@@ -101,7 +125,7 @@ export const TransferDashboardPage: React.FC = () => {
     setGenerating(true);
     setError(null);
     try {
-      await transferService.generateRecommendations(hospitalId, 1);
+      await transferService.generateRecommendations(selectedHospitalId, 1);
       await fetchData();
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { detail?: string } } };
@@ -159,6 +183,24 @@ export const TransferDashboardPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Hospital Switcher */}
+          {hospitals.length > 0 && (
+            <div className="relative inline-flex items-center">
+              <Building2 className="w-4 h-4 text-sky-600 absolute left-3 pointer-events-none" />
+              <select
+                value={selectedHospitalId}
+                onChange={(e) => setSelectedHospitalId(Number(e.target.value))}
+                className="pl-9 pr-8 py-2 text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 shadow-xs focus:ring-2 focus:ring-sky-500 cursor-pointer"
+              >
+                {hospitals.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name} ({h.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <button
             onClick={() => {
               setShowAuditDrawer(true);
@@ -251,7 +293,7 @@ export const TransferDashboardPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <Building2 className="w-4 h-4 text-sky-600" />
             <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
-              Ward Capacity & Bed Headroom Overview
+              {currentHospital ? `${currentHospital.name} — Ward Capacity & Headroom` : 'Ward Capacity & Bed Headroom Overview'}
             </h3>
           </div>
           <span className="text-[11px] text-slate-400 font-medium">Real-time Phase 6 Calculation</span>
@@ -438,11 +480,19 @@ export const TransferDashboardPage: React.FC = () => {
               {/* Transfer Card Header */}
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div>
-                  <div className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                    Patient: {t.patient_name || `ID #${t.patient_id}`}
-                    <span className="text-[11px] font-normal text-slate-400">
-                      ({t.patient_identifier})
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                      Patient: {t.patient_name || `ID #${t.patient_id}`}
+                      <span className="text-[11px] font-normal text-slate-400">
+                        ({t.patient_identifier})
+                      </span>
                     </span>
+                    {(t.hospital_name || currentHospital?.name) && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                        <Building2 className="w-3 h-3 text-sky-600" />
+                        {t.hospital_name || currentHospital?.name}
+                      </span>
+                    )}
                   </div>
                   <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
                     <Clock className="w-3 h-3" />
@@ -515,7 +565,7 @@ export const TransferDashboardPage: React.FC = () => {
       {/* Modals */}
       {showNewTransferModal && (
         <NewTransferModal
-          hospitalId={hospitalId}
+          hospitalId={selectedHospitalId}
           onClose={() => setShowNewTransferModal(false)}
           onSuccess={fetchData}
         />
@@ -541,7 +591,7 @@ export const TransferDashboardPage: React.FC = () => {
 
       {showRulesModal && (
         <TransferRulesModal
-          hospitalId={hospitalId}
+          hospitalId={selectedHospitalId}
           userRole={user?.role}
           onClose={() => setShowRulesModal(false)}
         />

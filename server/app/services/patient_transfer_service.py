@@ -1,5 +1,5 @@
-from datetime import UTC, datetime
 import logging
+from datetime import UTC, datetime
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -18,7 +18,10 @@ logger = logging.getLogger(__name__)
 class PatientTransferService:
     @staticmethod
     def _enrich_transfer_response(transfer: Transfer) -> Transfer:
-        """Helper to attach human-readable metadata to Transfer instance for response schemas."""
+        """Helper to attach human-readable metadata to Transfer instance
+        for response schemas."""
+        if transfer.hospital:
+            transfer.hospital_name = transfer.hospital.name
         if transfer.patient:
             transfer.patient_name = (
                 f"{transfer.patient.first_name} {transfer.patient.last_name}"
@@ -78,7 +81,8 @@ class PatientTransferService:
         )
         if not admission:
             raise ValueError(
-                f"Patient '{patient.first_name} {patient.last_name}' does not have an active admission."
+                f"Patient '{patient.first_name} {patient.last_name}' does not have "
+                "an active admission."
             )
 
         source_ward_id = admission.ward_id
@@ -98,7 +102,8 @@ class PatientTransferService:
         )
         if existing_pending:
             raise ValueError(
-                f"An active transfer request already exists for this patient (Transfer ID #{existing_pending.id})."
+                "An active transfer request already exists for this patient "
+                f"(Transfer ID #{existing_pending.id})."
             )
 
         # 4. Validate Source and Destination Wards
@@ -127,15 +132,18 @@ class PatientTransferService:
         )
         if not dest_bed:
             raise ValueError(
-                f"Destination bed ID {destination_bed_id} does not exist in ward '{dest_ward.name}'."
+                f"Destination bed ID {destination_bed_id} does not exist in ward "
+                f"'{dest_ward.name}'."
             )
 
         if dest_bed.status != BedStatus.AVAILABLE.value:
             raise ValueError(
-                f"Destination bed '{dest_bed.bed_number}' is currently {dest_bed.status}, not AVAILABLE."
+                f"Destination bed '{dest_bed.bed_number}' is currently "
+                f"{dest_bed.status}, not AVAILABLE."
             )
 
-        # Check if destination bed is already reserved by another active pending/approved transfer
+        # Check if destination bed is already reserved by another active
+        # pending/approved transfer
         existing_bed_reservation = (
             db.query(Transfer)
             .filter(
@@ -148,7 +156,8 @@ class PatientTransferService:
         )
         if existing_bed_reservation:
             raise ValueError(
-                f"Destination bed '{dest_bed.bed_number}' is already reserved by active transfer request #{existing_bed_reservation.id}."
+                f"Destination bed '{dest_bed.bed_number}' is already reserved "
+                f"by active transfer request #{existing_bed_reservation.id}."
             )
 
         # 6. Instantiate Transfer
@@ -196,7 +205,8 @@ class PatientTransferService:
         user_id: int,
         notes: str | None = None,
     ) -> Transfer:
-        """Approve a requested inter-ward transfer after re-validating destination bed availability."""
+        """Approve a requested inter-ward transfer after re-validating
+        destination bed availability."""
         transfer = (
             db.query(Transfer)
             .filter(Transfer.id == transfer_id, Transfer.hospital_id == hospital_id)
@@ -207,17 +217,22 @@ class PatientTransferService:
 
         if transfer.status != TransferStatus.REQUESTED.value:
             raise ValueError(
-                f"Transfer request is in '{transfer.status}' status and cannot be approved."
+                f"Transfer request is in '{transfer.status}' status and cannot "
+                "be approved."
             )
 
         # Re-validate destination bed availability
         dest_bed = db.query(Bed).filter(Bed.id == transfer.destination_bed_id).first()
+        dest_desc = (
+            dest_bed.bed_number if dest_bed else transfer.destination_bed_id
+        )
         if not dest_bed or dest_bed.status != BedStatus.AVAILABLE.value:
             raise ValueError(
-                f"Destination bed '{dest_bed.bed_number if dest_bed else transfer.destination_bed_id}' is no longer AVAILABLE."
+                f"Destination bed '{dest_desc}' is no longer AVAILABLE."
             )
 
-        # Re-validate that no other transfer has already been approved for this destination bed
+        # Re-validate that no other transfer has already been approved
+        # for this destination bed
         other_approved = (
             db.query(Transfer)
             .filter(
@@ -229,7 +244,8 @@ class PatientTransferService:
         )
         if other_approved:
             raise ValueError(
-                f"Destination bed is already reserved by approved transfer #{other_approved.id}."
+                f"Destination bed is already reserved by approved transfer "
+                f"#{other_approved.id}."
             )
 
         transfer.status = TransferStatus.APPROVED.value
@@ -339,7 +355,8 @@ class PatientTransferService:
         cls, db: Session, transfer_id: int, hospital_id: int, user_id: int
     ) -> Transfer:
         """
-        Execute full atomic database transaction to complete inter-ward patient transfer:
+        Execute full atomic database transaction to complete inter-ward
+        patient transfer:
         1. Verify transfer status = APPROVED (or REQUESTED)
         2. Verify destination bed is still AVAILABLE
         3. Verify source bed is occupied by patient's active admission
@@ -362,7 +379,8 @@ class PatientTransferService:
             TransferStatus.REQUESTED.value,
         ]:
             raise ValueError(
-                f"Transfer request must be APPROVED or REQUESTED to be completed. Current status: '{transfer.status}'."
+                "Transfer request must be APPROVED or REQUESTED to be completed. "
+                f"Current status: '{transfer.status}'."
             )
 
         # 1. Fetch Source Bed & Destination Bed
@@ -379,9 +397,12 @@ class PatientTransferService:
             .first()
         )
 
+        dest_desc = (
+            dest_bed.bed_number if dest_bed else transfer.destination_bed_id
+        )
         if not dest_bed or dest_bed.status != BedStatus.AVAILABLE.value:
             raise ValueError(
-                f"Destination bed '{dest_bed.bed_number if dest_bed else transfer.destination_bed_id}' is no longer AVAILABLE."
+                f"Destination bed '{dest_desc}' is no longer AVAILABLE."
             )
 
         # 2. Fetch Active Admission
@@ -409,7 +430,8 @@ class PatientTransferService:
             admission.ward_id = transfer.destination_ward_id
             admission.bed_id = transfer.destination_bed_id
 
-            # 6. Log Occupancy Events (TRANSFER_OUT for source, TRANSFER_IN for destination)
+            # 6. Log Occupancy Events (TRANSFER_OUT for source,
+            #    TRANSFER_IN for destination)
             now = datetime.now(UTC)
             ts = int(now.timestamp())
 
@@ -467,8 +489,9 @@ class PatientTransferService:
         except SQLAlchemyError as e:
             db.rollback()
             raise ValueError(
-                f"Failed to complete transfer due to database transaction failure: {e!s}"
-            )
+                "Failed to complete transfer due to database transaction "
+                f"failure: {e!s}"
+            ) from e
 
     @classmethod
     def get_transfers(

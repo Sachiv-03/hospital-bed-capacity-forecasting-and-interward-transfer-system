@@ -1,26 +1,27 @@
+from logging.config import fileConfig
 import os
 import sys
-from logging.config import fileConfig
-
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
 
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # Append parent directory to sys.path to allow importing app modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Import Base and models for Alembic autogenerate support
-from app.database.database import Base
+import app.models  # noqa: F401 — Ensure all models are registered
 from app.database.config import DATABASE_URL
-import app.models  # Ensure all models are registered
+from app.database.database import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
 # Dynamically set database URL from environment variable (.env)
-config.set_main_option("sqlalchemy.url", DATABASE_URL)
+alembic_db_url = DATABASE_URL
+if alembic_db_url.startswith("postgres://"):
+    alembic_db_url = alembic_db_url.replace("postgres://", "postgresql://", 1)
+config.set_main_option("sqlalchemy.url", alembic_db_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

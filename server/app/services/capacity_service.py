@@ -1,6 +1,5 @@
+from datetime import date, datetime, timezone
 import logging
-from datetime import datetime, date
-from typing import List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy import func, Date, cast
 from sqlalchemy.orm import Session
@@ -97,24 +96,65 @@ class CapacityService:
         )
 
     @staticmethod
-    def get_all_ward_capacities(db: Session, hospital_id: int) -> List[WardCapacityResponse]:
-        """Return capacity for every active ward in a hospital."""
+    def get_all_ward_capacities(
+        db: Session, hospital_id: int
+    ) -> list[WardCapacityResponse]:
+        """Return capacity for every active ward in a hospital (batch-optimized)."""
         wards = (
             db.query(Ward)
-            .filter(Ward.hospital_id == hospital_id, Ward.status == WardStatus.ACTIVE.value)
+            .filter(
+                Ward.hospital_id == hospital_id,
+                Ward.status == WardStatus.ACTIVE.value,
+            )
             .order_by(Ward.name)
             .all()
         )
+        if not wards:
+            return []
+
+        # Batch query all bed counts for this hospital in one round-trip
+        bed_rows = (
+            db.query(Bed.ward_id, Bed.status, func.count(Bed.id))
+            .filter(Bed.hospital_id == hospital_id)
+            .group_by(Bed.ward_id, Bed.status)
+            .all()
+        )
+        counts_by_ward: dict[int, dict[str, int]] = {}
+        for w_id, stat, cnt in bed_rows:
+            if w_id not in counts_by_ward:
+                counts_by_ward[w_id] = {
+                    BedStatus.AVAILABLE.value: 0,
+                    BedStatus.OCCUPIED.value: 0,
+                    BedStatus.CLEANING.value: 0,
+                    BedStatus.MAINTENANCE.value: 0,
+                    BedStatus.RESERVED.value: 0,
+                    "INACTIVE": 0,
+                }
+            counts_by_ward[w_id][stat] = cnt
+
+        default_counts = {
+            BedStatus.AVAILABLE.value: 0,
+            BedStatus.OCCUPIED.value: 0,
+            BedStatus.CLEANING.value: 0,
+            BedStatus.MAINTENANCE.value: 0,
+            BedStatus.RESERVED.value: 0,
+            "INACTIVE": 0,
+        }
+
         results = []
         for ward in wards:
-            counts = CapacityService._count_beds_by_status(db, ward.id)
+            counts = counts_by_ward.get(ward.id, default_counts)
             total = sum(counts.values())
             occupied = counts.get(BedStatus.OCCUPIED.value, 0)
             available = counts.get(BedStatus.AVAILABLE.value, 0)
             operational = occupied + available
-            
-            occupancy_pct = round((occupied / operational * 100), 2) if operational > 0 else 0.0
-            avail_cap_pct = round((available / operational * 100), 2) if operational > 0 else 0.0
+
+            occupancy_pct = (
+                round((occupied / operational * 100), 2) if operational > 0 else 0.0
+            )
+            avail_cap_pct = (
+                round((available / operational * 100), 2) if operational > 0 else 0.0
+            )
 
             results.append(
                 WardCapacityResponse(
@@ -217,14 +257,14 @@ class CapacityService:
             active_admissions=cap.active_admissions,
             admissions_today=cap.admissions_today,
             discharges_today=cap.discharges_today,
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.now(timezone.utc).isoformat()
         )
 
     @staticmethod
     def get_management_analytics(
         db: Session,
         hospital_id: int,
-        ward_id: Optional[int] = None,
+        ward_id: int | None = None,
         horizon: int = 7,
     ) -> ManagementAnalyticsResponse:
         """
@@ -325,15 +365,32 @@ class CapacityService:
         try:
             from app.services.forecasting.forecast_service import ForecastService
             hospital_forecast = ForecastService.get_hospital_forecast(db, hospital_id=hospital_id, horizon=horizon)
-            ward_forecast_map = {ws.ward_id: ws for ws in hospital_forecast.ward_summaries}
-        except Exception:
+            ward_summaries = (
+                hospital_forecast.get("ward_summaries", [])
+                if isinstance(hospital_forecast, dict)
+                else getattr(hospital_forecast, "ward_summaries", [])
+            )
+            ward_forecast_map = {
+                (ws.get("ward_id") if isinstance(ws, dict) else ws.ward_id): ws
+                for ws in ward_summaries
+            }
+        except Exception as exc:
+            logger.warning("Forecast retrieval notice for management analytics: %s", exc)
             ward_forecast_map = {}
 
         for w in (all_ward_caps if not selected_ward else target_caps):
             wf = ward_forecast_map.get(w.ward_id)
             if wf:
-                predicted_peak = float(wf.max_7day_occupancy_percentage)
-                risk_lvl = wf.max_risk_level
+                predicted_peak = float(
+                    wf.get("max_7day_occupancy_percentage", w.occupancy_percentage)
+                    if isinstance(wf, dict)
+                    else getattr(wf, "max_7day_occupancy_percentage", w.occupancy_percentage)
+                )
+                risk_lvl = str(
+                    wf.get("max_risk_level", w.status)
+                    if isinstance(wf, dict)
+                    else getattr(wf, "max_risk_level", w.status)
+                )
                 item = ManagementWardRiskItem(
                     ward_id=w.ward_id,
                     ward_name=w.ward_name,
@@ -376,7 +433,7 @@ class CapacityService:
         latest_fc = db.query(BedCapacityForecast).filter(BedCapacityForecast.hospital_id == hospital_id).order_by(BedCapacityForecast.generated_at.desc()).first()
         latest_al = db.query(CapacityAlert).filter(CapacityAlert.hospital_id == hospital_id).order_by(CapacityAlert.created_at.desc()).first()
 
-        now_utc = datetime.utcnow()
+        now_utc = datetime.now(timezone.utc)
         freshness = ManagementFreshness(
             occupancy_last_updated=latest_snap.snapshot_time.isoformat() if latest_snap else (now_utc.isoformat() if all_ward_caps else None),
             forecast_last_updated=latest_fc.generated_at.isoformat() if latest_fc and latest_fc.generated_at else None,
@@ -396,7 +453,8 @@ class CapacityService:
                 latest_observation_date=dq.get("latest_observation_date"),
                 missing_dates=dq.get("missing_dates", 0),
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("Data quality summary retrieval notice: %s", exc)
             data_quality_summary = ManagementDataQualitySummary()
 
         overview_metrics = ManagementOverviewMetrics(

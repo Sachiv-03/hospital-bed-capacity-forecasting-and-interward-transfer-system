@@ -5,10 +5,8 @@ import {
   Ward,
   Hospital,
   OccupancyEvent,
-  CapacityStatus,
   CapacityAlert,
   ManagementAnalyticsResponse,
-  WardCapacity,
 } from '../types';
 import { fetchHealthStatus } from '../services/api';
 import { hospitalService } from '../services/hospitalService';
@@ -46,12 +44,9 @@ import {
   RotateCcw,
   ShieldAlert,
   Cpu,
-  Calendar,
   AlertTriangle,
   Info,
-  ChevronRight,
   ArrowRight,
-  ExternalLink,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -307,10 +302,14 @@ export const DashboardPage: React.FC = () => {
         setSelectedAlertForModal(null);
       }
       fetchDashboardData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to acknowledge alert:', err);
-      const detail = err.response?.data?.detail;
-      const errorStr = typeof detail === 'string' ? detail : (err.message || 'Failed to acknowledge alert.');
+      let errorStr = 'Failed to acknowledge alert.';
+      if (typeof err === 'object' && err !== null) {
+        const axiosErr = err as { response?: { data?: { detail?: string } }; message?: string };
+        const detail = axiosErr.response?.data?.detail;
+        errorStr = typeof detail === 'string' ? detail : (axiosErr.message || errorStr);
+      }
       setToastMessage(`Error: ${errorStr}`);
       setTimeout(() => setToastMessage(null), 4000);
     } finally {
@@ -328,10 +327,14 @@ export const DashboardPage: React.FC = () => {
         setSelectedAlertForModal(null);
       }
       fetchDashboardData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to resolve alert:', err);
-      const detail = err.response?.data?.detail;
-      const errorStr = typeof detail === 'string' ? detail : (err.message || 'Failed to resolve alert.');
+      let errorStr = 'Failed to resolve alert.';
+      if (typeof err === 'object' && err !== null) {
+        const axiosErr = err as { response?: { data?: { detail?: string } }; message?: string };
+        const detail = axiosErr.response?.data?.detail;
+        errorStr = typeof detail === 'string' ? detail : (axiosErr.message || errorStr);
+      }
       setToastMessage(`Error: ${errorStr}`);
       setTimeout(() => setToastMessage(null), 4000);
     } finally {
@@ -353,7 +356,7 @@ export const DashboardPage: React.FC = () => {
     if (!wardSearch.trim()) return managementData.ward_occupancy_breakdown;
     const q = wardSearch.toLowerCase();
     return managementData.ward_occupancy_breakdown.filter(
-      (w) => w.ward_name.toLowerCase().includes(q) || w.ward_type.toLowerCase().includes(q)
+      (w) => w.ward_name.toLowerCase().includes(q) || (w.ward_type && w.ward_type.toLowerCase().includes(q))
     );
   }, [managementData?.ward_occupancy_breakdown, wardSearch]);
 

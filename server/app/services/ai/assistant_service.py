@@ -399,10 +399,6 @@ class AssistantService:
                 conversation_history=history_list,
                 evidence_summary=evidence_summary,
             )
-
-        if provider_status == "mock_deterministic" and not any("Deterministic" in w for w in warnings):
-            warnings.append("Operating in deterministic decision-support mode (Live LLM API key not configured).")
-
         # 5. Build Response
         timestamp_str = evidence_dict.get("timestamp", datetime.now(timezone.utc).isoformat())
 

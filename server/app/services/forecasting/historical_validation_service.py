@@ -467,7 +467,17 @@ class HistoricalDataValidationService:
         if hospital_id is not None:
             snap_query = snap_query.filter(OccupancySnapshot.hospital_id == hospital_id)
 
-        all_snaps = snap_query.order_by(OccupancySnapshot.snapshot_time.asc()).all()
+        all_snaps = (
+            snap_query.with_entities(
+                OccupancySnapshot.hospital_id,
+                OccupancySnapshot.ward_id,
+                OccupancySnapshot.snapshot_time,
+                OccupancySnapshot.occupied_beds,
+                OccupancySnapshot.total_beds,
+            )
+            .order_by(OccupancySnapshot.snapshot_time.asc())
+            .all()
+        )
         total_snaps = len(all_snaps)
 
         if total_snaps == 0:

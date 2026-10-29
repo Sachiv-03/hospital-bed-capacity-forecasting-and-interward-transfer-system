@@ -36,4 +36,9 @@ export const hospitalService = {
     const response = await apiClient.delete<Hospital>(`/hospitals/${hospitalId}`);
     return response.data;
   },
+
+  deleteHospitalPermanent: async (hospitalId: number): Promise<{ success: boolean; message: string }> => {
+    const response = await apiClient.delete<{ success: boolean; message: string }>(`/hospitals/${hospitalId}/permanent`);
+    return response.data;
+  },
 };

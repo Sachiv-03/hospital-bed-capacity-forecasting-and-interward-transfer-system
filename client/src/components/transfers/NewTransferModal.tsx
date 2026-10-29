@@ -12,23 +12,29 @@ import {
   BedDouble,
   ShieldCheck,
   RefreshCw,
+  Building2,
 } from 'lucide-react';
-import { Admission, Ward, Bed, DestinationWardRecommendation } from '../../types';
+import { Admission, Ward, Bed, DestinationWardRecommendation, Hospital } from '../../types';
 import { getAdmissions, getWardAvailableBeds } from '../../services/admissionService';
 import { getWards } from '../../services/wardService';
 import { transferService } from '../../services/transferService';
+import { hospitalService } from '../../services/hospitalService';
 
 interface NewTransferModalProps {
-  hospitalId: number;
+  hospitalId?: number;
   onClose: () => void;
   onSuccess: () => void;
 }
 
 export const NewTransferModal: React.FC<NewTransferModalProps> = ({
-  hospitalId,
+  hospitalId: initialHospitalId,
   onClose,
   onSuccess,
 }) => {
+  const [selectedHospitalId, setSelectedHospitalId] = useState<number>(initialHospitalId || 1);
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
+  const [loadingHospitals, setLoadingHospitals] = useState<boolean>(true);
+
   const [admissions, setAdmissions] = useState<Admission[]>([]);
   const [wards, setWards] = useState<Ward[]>([]);
   const [availableBeds, setAvailableBeds] = useState<Bed[]>([]);
@@ -48,37 +54,73 @@ export const NewTransferModal: React.FC<NewTransferModalProps> = ({
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Load available hospitals
   useEffect(() => {
+    let isMounted = true;
+    setLoadingHospitals(true);
+    hospitalService
+      .getHospitals({ limit: 100 })
+      .then((res) => {
+        if (!isMounted) return;
+        const activeList = (res.items || []).filter((h) => h.status === 'ACTIVE');
+        setHospitals(activeList);
+        if (initialHospitalId && activeList.some((h) => h.id === initialHospitalId)) {
+          setSelectedHospitalId(initialHospitalId);
+        } else if (activeList.length > 0) {
+          setSelectedHospitalId(activeList[0].id);
+        }
+      })
+      .catch((err) => console.error('Failed to load hospitals list:', err))
+      .finally(() => {
+        if (isMounted) setLoadingHospitals(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [initialHospitalId]);
+
+  // Load admissions and wards for the selected hospital
+  useEffect(() => {
+    if (!selectedHospitalId) return;
+    let isMounted = true;
     const fetchInitialData = async () => {
       setLoadingAdmissions(true);
+      setError(null);
       try {
         const [admissionsRes, wardsRes] = await Promise.all([
-          getAdmissions({ hospital_id: hospitalId, status: 'ADMITTED', limit: 100 }),
-          getWards({ hospital_id: hospitalId, limit: 100 }),
+          getAdmissions({ hospital_id: selectedHospitalId, status: 'ADMITTED', limit: 100 }),
+          getWards({ hospital_id: selectedHospitalId, limit: 100 }),
         ]);
+        if (!isMounted) return;
         setAdmissions(admissionsRes.items || []);
         setWards((wardsRes.items || []).filter((w: Ward) => w.status === 'ACTIVE'));
       } catch (err: unknown) {
+        if (!isMounted) return;
         const errObj = err as { response?: { data?: { detail?: string } } };
         setError(errObj.response?.data?.detail || 'Failed to fetch patients or wards data.');
       } finally {
-        setLoadingAdmissions(false);
+        if (isMounted) setLoadingAdmissions(false);
       }
     };
 
     fetchInitialData();
-  }, [hospitalId]);
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedHospitalId]);
 
   const selectedAdmission = admissions.find((a) => a.id === Number(selectedAdmissionId));
 
   // Phase 11: Fetch explainable destination recommendations when patient is selected
   const fetchRecommendations = useCallback(async (patientId: number) => {
+    if (!selectedHospitalId) return;
     setLoadingRecs(true);
     setRecsError(null);
     try {
       const resp = await transferService.getPatientDestinationRecommendations({
         patient_id: patientId,
-        hospital_id: hospitalId,
+        hospital_id: selectedHospitalId,
         horizon_days: 1,
       });
       setRecommendations(resp.recommendations || []);
@@ -89,7 +131,7 @@ export const NewTransferModal: React.FC<NewTransferModalProps> = ({
     } finally {
       setLoadingRecs(false);
     }
-  }, [hospitalId]);
+  }, [selectedHospitalId]);
 
   useEffect(() => {
     if (selectedAdmission) {
@@ -162,7 +204,7 @@ export const NewTransferModal: React.FC<NewTransferModalProps> = ({
         destination_ward_id: Number(selectedDestinationWardId),
         destination_bed_id: Number(selectedDestinationBedId),
         reason: reason.trim() || undefined,
-        hospital_id: hospitalId,
+        hospital_id: selectedHospitalId,
       });
 
       onSuccess();
@@ -209,6 +251,48 @@ export const NewTransferModal: React.FC<NewTransferModalProps> = ({
               <span>{error}</span>
             </div>
           )}
+
+          {/* Hospital Facility Selector */}
+          <div>
+            <label className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+              <span className="flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-sky-600" />
+                Hospital Facility *
+              </span>
+              <span className="text-[10px] text-slate-400 font-normal">
+                Select hospital for this transfer
+              </span>
+            </label>
+            {loadingHospitals ? (
+              <div className="h-10 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+            ) : hospitals.length > 0 ? (
+              <select
+                value={selectedHospitalId}
+                onChange={(e) => {
+                  const newHospId = Number(e.target.value);
+                  setSelectedHospitalId(newHospId);
+                  setSelectedAdmissionId('');
+                  setSelectedDestinationWardId('');
+                  setSelectedDestinationBedId('');
+                  setRecommendations([]);
+                  setError(null);
+                }}
+                required
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-2 focus:ring-sky-500 shadow-xs"
+              >
+                {hospitals.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name} ({h.code}) {h.city ? `— ${h.city}` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs rounded-xl font-medium flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-sky-600" />
+                <span>Hospital #{selectedHospitalId}</span>
+              </div>
+            )}
+          </div>
 
           {/* 1. Select Patient */}
           <div>

@@ -58,7 +58,7 @@ class TimeSeriesForecaster:
             )
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                res = model.fit(disp=False, maxiter=100, warn_convergence=False)
+                res = model.fit(disp=False, maxiter=25, method="lbfgs", warn_convergence=False)
 
             forecast_res = res.get_forecast(steps=horizon)
             mean_pred = forecast_res.predicted_mean.values

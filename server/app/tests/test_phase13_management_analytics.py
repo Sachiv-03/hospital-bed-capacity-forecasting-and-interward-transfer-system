@@ -12,7 +12,9 @@ Comprehensive tests covering:
 - Authorization and cross-hospital tenant isolation (SUPER_ADMIN vs regular user)
 - Data freshness timestamps
 """
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -25,7 +27,12 @@ from app.database.database import Base
 from app.main import app
 from app.models.admission import Admission, AdmissionStatus
 from app.models.bed import Bed, BedStatus, BedType
-from app.models.capacity_alert import AlertSeverity, AlertStatus, AlertType, CapacityAlert
+from app.models.capacity_alert import (
+    AlertSeverity,
+    AlertStatus,
+    AlertType,
+    CapacityAlert,
+)
 from app.models.hospital import Hospital, HospitalStatus
 from app.models.occupancy_snapshot import OccupancySnapshot
 from app.models.patient import Patient, PatientStatus
@@ -37,7 +44,6 @@ from app.models.transfer_recommendation import (
 )
 from app.models.user import User, UserRole
 from app.models.ward import Ward, WardStatus
-
 
 # ── In-Memory SQLite for Thread-Safe Test Isolation ─────────────────────────
 SQLITE_URL = "sqlite:///:memory:"
@@ -90,7 +96,14 @@ def seed_hospital(db: Session, name="Metro General", code="MG01") -> Hospital:
     return h
 
 
-def seed_ward(db: Session, hospital_id: int, name="Cardiology Ward", capacity=20, ward_type="GENERAL", floor="1st Floor") -> Ward:
+def seed_ward(
+    db: Session,
+    hospital_id: int,
+    name="Cardiology Ward",
+    capacity=20,
+    ward_type="GENERAL",
+    floor="1st Floor",
+) -> Ward:
     w = Ward(
         hospital_id=hospital_id,
         name=name,
@@ -106,49 +119,67 @@ def seed_ward(db: Session, hospital_id: int, name="Cardiology Ward", capacity=20
     return w
 
 
-def seed_beds(db: Session, ward_id: int, hospital_id: int, occupied: int = 5, available: int = 15, cleaning: int = 0, maintenance: int = 0):
+def seed_beds(
+    db: Session,
+    ward_id: int,
+    hospital_id: int,
+    occupied: int = 5,
+    available: int = 15,
+    cleaning: int = 0,
+    maintenance: int = 0,
+):
     beds = []
     # Occupied
     for i in range(occupied):
-        beds.append(Bed(
-            ward_id=ward_id,
-            hospital_id=hospital_id,
-            bed_number=f"BED-OCC-{i+1}",
-            bed_type=BedType.STANDARD.value,
-            status=BedStatus.OCCUPIED.value,
-        ))
+        beds.append(
+            Bed(
+                ward_id=ward_id,
+                hospital_id=hospital_id,
+                bed_number=f"BED-OCC-{i + 1}",
+                bed_type=BedType.STANDARD.value,
+                status=BedStatus.OCCUPIED.value,
+            )
+        )
     # Available
     for i in range(available):
-        beds.append(Bed(
-            ward_id=ward_id,
-            hospital_id=hospital_id,
-            bed_number=f"BED-AVL-{i+1}",
-            bed_type=BedType.STANDARD.value,
-            status=BedStatus.AVAILABLE.value,
-        ))
+        beds.append(
+            Bed(
+                ward_id=ward_id,
+                hospital_id=hospital_id,
+                bed_number=f"BED-AVL-{i + 1}",
+                bed_type=BedType.STANDARD.value,
+                status=BedStatus.AVAILABLE.value,
+            )
+        )
     # Cleaning
     for i in range(cleaning):
-        beds.append(Bed(
-            ward_id=ward_id,
-            hospital_id=hospital_id,
-            bed_number=f"BED-CLN-{i+1}",
-            bed_type=BedType.STANDARD.value,
-            status=BedStatus.CLEANING.value,
-        ))
+        beds.append(
+            Bed(
+                ward_id=ward_id,
+                hospital_id=hospital_id,
+                bed_number=f"BED-CLN-{i + 1}",
+                bed_type=BedType.STANDARD.value,
+                status=BedStatus.CLEANING.value,
+            )
+        )
     # Maintenance
     for i in range(maintenance):
-        beds.append(Bed(
-            ward_id=ward_id,
-            hospital_id=hospital_id,
-            bed_number=f"BED-MNT-{i+1}",
-            bed_type=BedType.STANDARD.value,
-            status=BedStatus.MAINTENANCE.value,
-        ))
+        beds.append(
+            Bed(
+                ward_id=ward_id,
+                hospital_id=hospital_id,
+                bed_number=f"BED-MNT-{i + 1}",
+                bed_type=BedType.STANDARD.value,
+                status=BedStatus.MAINTENANCE.value,
+            )
+        )
     db.add_all(beds)
     db.commit()
 
 
-def create_test_user(db: Session, email="admin@metro.com", role=UserRole.ADMIN.value, hospital_id=1) -> tuple[User, str]:
+def create_test_user(
+    db: Session, email="admin@metro.com", role=UserRole.ADMIN.value, hospital_id=1
+) -> tuple[User, str]:
     user = User(
         email=email,
         full_name="Hospital Administrator",
@@ -165,6 +196,7 @@ def create_test_user(db: Session, email="admin@metro.com", role=UserRole.ADMIN.v
 
 
 # ── TEST CASES ───────────────────────────────────────────────────────────────
+
 
 def test_dashboard_aggregation_accuracy(db: Session, client: TestClient):
     """Test accurate operational bed count, occupancy rate, and available beds."""
@@ -199,7 +231,9 @@ def test_dashboard_aggregation_accuracy(db: Session, client: TestClient):
     assert len(data["ward_occupancy_breakdown"]) == 2
 
 
-def test_operational_bed_formula_and_zero_division_safety(db: Session, client: TestClient):
+def test_operational_bed_formula_and_zero_division_safety(
+    db: Session, client: TestClient
+):
     """Test hospital with 0 operational beds does not cause division-by-zero errors."""
     h = seed_hospital(db, name="Empty Care Facility", code="ECF1")
     w = seed_ward(db, h.id, name="Rehab Ward", capacity=10)
@@ -297,7 +331,7 @@ def test_alert_summary_integration(db: Session, client: TestClient):
     w = seed_ward(db, h.id, name="Trauma Center", capacity=20)
     seed_beds(db, w.id, h.id, occupied=18, available=2)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # Seed 1 CRITICAL active alert, 1 HIGH active alert, 1 INFO active alert, 1 RESOLVED alert
     a1 = CapacityAlert(
         hospital_id=h.id,
@@ -393,10 +427,37 @@ def test_transfer_status_summary_integration(db: Session, client: TestClient):
     db.commit()
 
     # Seed 1 REQUESTED transfer, 1 APPROVED transfer, 1 COMPLETED transfer
-    t1 = Transfer(hospital_id=h.id, patient_id=patient.id, admission_id=adm.id, source_ward_id=w1.id, destination_ward_id=w2.id, source_bed_id=1, destination_bed_id=2, status=TransferStatus.REQUESTED.value)
-    t2 = Transfer(hospital_id=h.id, patient_id=patient.id, admission_id=adm.id, source_ward_id=w1.id, destination_ward_id=w2.id, source_bed_id=1, destination_bed_id=3, status=TransferStatus.APPROVED.value)
-    t3 = Transfer(hospital_id=h.id, patient_id=patient.id, admission_id=adm.id, source_ward_id=w1.id, destination_ward_id=w2.id, source_bed_id=1, destination_bed_id=4, status=TransferStatus.COMPLETED.value)
-    
+    t1 = Transfer(
+        hospital_id=h.id,
+        patient_id=patient.id,
+        admission_id=adm.id,
+        source_ward_id=w1.id,
+        destination_ward_id=w2.id,
+        source_bed_id=1,
+        destination_bed_id=2,
+        status=TransferStatus.REQUESTED.value,
+    )
+    t2 = Transfer(
+        hospital_id=h.id,
+        patient_id=patient.id,
+        admission_id=adm.id,
+        source_ward_id=w1.id,
+        destination_ward_id=w2.id,
+        source_bed_id=1,
+        destination_bed_id=3,
+        status=TransferStatus.APPROVED.value,
+    )
+    t3 = Transfer(
+        hospital_id=h.id,
+        patient_id=patient.id,
+        admission_id=adm.id,
+        source_ward_id=w1.id,
+        destination_ward_id=w2.id,
+        source_bed_id=1,
+        destination_bed_id=4,
+        status=TransferStatus.COMPLETED.value,
+    )
+
     # Seed 1 recommendation
     rec = TransferRecommendation(
         hospital_id=h.id,
@@ -414,7 +475,7 @@ def test_transfer_status_summary_integration(db: Session, client: TestClient):
         status=RecommendationStatus.PENDING.value,
         reason="Capacity relief",
         forecast_horizon_days=7,
-        expires_at=datetime.now(timezone.utc) + timedelta(days=1),
+        expires_at=datetime.now(UTC) + timedelta(days=1),
     )
     db.add_all([t1, t2, t3, rec])
     db.commit()
@@ -439,13 +500,19 @@ def test_transfer_status_summary_integration(db: Session, client: TestClient):
     assert tf["by_status"]["COMPLETED"] == 1
 
 
-def test_authorization_and_cross_hospital_tenant_isolation(db: Session, client: TestClient):
+def test_authorization_and_cross_hospital_tenant_isolation(
+    db: Session, client: TestClient
+):
     """Test tenant isolation: regular user cannot access another hospital; super_admin can."""
     h1 = seed_hospital(db, name="Facility Alpha", code="FA01")
     h2 = seed_hospital(db, name="Facility Beta", code="FB02")
 
-    _user_alpha, token_alpha = create_test_user(db, email="user@alpha.com", role=UserRole.DOCTOR.value, hospital_id=h1.id)
-    _user_super, token_super = create_test_user(db, email="super@system.com", role=UserRole.SUPER_ADMIN.value, hospital_id=h1.id)
+    _user_alpha, token_alpha = create_test_user(
+        db, email="user@alpha.com", role=UserRole.DOCTOR.value, hospital_id=h1.id
+    )
+    _user_super, token_super = create_test_user(
+        db, email="super@system.com", role=UserRole.SUPER_ADMIN.value, hospital_id=h1.id
+    )
 
     # 1. Regular user querying their own hospital -> 200 OK
     res1 = client.get(
@@ -478,7 +545,7 @@ def test_data_freshness_timestamps(db: Session, client: TestClient):
     seed_beds(db, w.id, h.id, occupied=2, available=8)
 
     # Add snapshot
-    snap_time = datetime.now(timezone.utc) - timedelta(minutes=10)
+    snap_time = datetime.now(UTC) - timedelta(minutes=10)
     snap = OccupancySnapshot(
         hospital_id=h.id,
         ward_id=w.id,

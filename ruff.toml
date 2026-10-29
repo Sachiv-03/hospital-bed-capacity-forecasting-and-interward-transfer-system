@@ -1,0 +1,28 @@
+target-version = "py311"
+line-length = 88
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "B008",   # FastAPI Depends / Query / File call in argument defaults
+    "BLE001", # Blind exception catching in fallback blocks
+]
+
+[lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Security",
+    "fastapi.File",
+    "fastapi.Form",
+    "Depends",
+    "Query",
+    "File",
+    "require_roles",
+]
+
+[lint.isort]
+combine-as-imports = true

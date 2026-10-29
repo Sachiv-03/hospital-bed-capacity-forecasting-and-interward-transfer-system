@@ -20,9 +20,6 @@ import {
   ShieldAlert,
   ArrowRightLeft,
   Clock,
-  CheckCircle2,
-  HelpCircle,
-  Building,
   Info,
   ChevronRight,
 } from 'lucide-react';
@@ -74,27 +71,32 @@ export const AssistantPage: React.FC = () => {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.map((m) => {
+          return parsed.map((m: Partial<ChatMessage> & { content?: unknown }) => {
             let safeContent = '';
             if (typeof m.content === 'string') {
               safeContent = m.content;
             } else if (Array.isArray(m.content)) {
-              safeContent = m.content
-                .map((item: any) =>
-                  typeof item === 'object' && item !== null
-                    ? item.msg || JSON.stringify(item)
+              safeContent = (m.content as unknown[])
+                .map((item) =>
+                  typeof item === 'object' && item !== null && 'msg' in item
+                    ? String((item as { msg: unknown }).msg)
+                    : typeof item === 'object' && item !== null
+                    ? JSON.stringify(item)
                     : String(item)
                 )
                 .join('; ');
             } else if (typeof m.content === 'object' && m.content !== null) {
-              safeContent = m.content.msg || JSON.stringify(m.content);
+              safeContent =
+                'msg' in m.content
+                  ? String((m.content as { msg: unknown }).msg)
+                  : JSON.stringify(m.content);
             } else {
               safeContent = String(m.content ?? '');
             }
             return {
               ...m,
               content: safeContent,
-            };
+            } as ChatMessage;
           });
         }
       } catch {
@@ -106,9 +108,7 @@ export const AssistantPage: React.FC = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [statusInfo, setStatusInfo] = useState<AssistantStatusResponse | null>(null);
-  const [activeHospitalId, setActiveHospitalId] = useState<number | undefined>(
-    user?.hospital_id || 1
-  );
+  const activeHospitalId = user?.hospital_id || 1;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -158,29 +158,11 @@ export const AssistantPage: React.FC = () => {
     const historyPayload = messages
       .filter((m) => !m.isError && (m.role === 'user' || m.role === 'assistant'))
       .slice(-6)
-      .map((m) => {
-        let contentStr = '';
-        if (typeof m.content === 'string') {
-          contentStr = m.content;
-        } else if (Array.isArray(m.content)) {
-          contentStr = m.content
-            .map((item: any) =>
-              typeof item === 'object' && item !== null
-                ? item.msg || JSON.stringify(item)
-                : String(item)
-            )
-            .join('; ');
-        } else if (typeof m.content === 'object' && m.content !== null) {
-          contentStr = (m.content as any).msg || JSON.stringify(m.content);
-        } else {
-          contentStr = String(m.content ?? '');
-        }
-        return {
-          role: m.role,
-          content: contentStr.slice(0, 2000),
-          timestamp: new Date().toISOString(),
-        };
-      });
+      .map((m) => ({
+        role: m.role,
+        content: m.content.slice(0, 2000),
+        timestamp: new Date().toISOString(),
+      }));
 
     try {
       const response = await queryAssistant({
@@ -205,26 +187,37 @@ export const AssistantPage: React.FC = () => {
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       let errorText = 'A system error occurred while retrieving hospital data. Please check your network connection or try again.';
-      const responseData = err.response?.data;
-      if (responseData) {
-        const detail = responseData.detail ?? responseData.message ?? responseData;
-        if (typeof detail === 'string') {
-          errorText = detail;
-        } else if (Array.isArray(detail)) {
-          errorText = detail
-            .map((item: any) =>
-              typeof item === 'object' && item !== null
-                ? item.msg || JSON.stringify(item)
-                : String(item)
-            )
-            .join('; ');
-        } else if (typeof detail === 'object' && detail !== null) {
-          errorText = detail.msg || detail.message || JSON.stringify(detail);
+      if (err && typeof err === 'object') {
+        const axiosErr = err as { response?: { data?: unknown }; message?: string };
+        const responseData = axiosErr.response?.data;
+        if (responseData && typeof responseData === 'object') {
+          const resObj = responseData as Record<string, unknown>;
+          const detail = resObj.detail ?? resObj.message ?? responseData;
+          if (typeof detail === 'string') {
+            errorText = detail;
+          } else if (Array.isArray(detail)) {
+            errorText = detail
+              .map((item) =>
+                typeof item === 'object' && item !== null && 'msg' in item
+                  ? String((item as { msg: unknown }).msg)
+                  : typeof item === 'object' && item !== null
+                  ? JSON.stringify(item)
+                  : String(item)
+              )
+              .join('; ');
+          } else if (typeof detail === 'object' && detail !== null) {
+            errorText =
+              'msg' in detail
+                ? String((detail as { msg: unknown }).msg)
+                : JSON.stringify(detail);
+          }
+        } else if (typeof responseData === 'string') {
+          errorText = responseData;
+        } else if (axiosErr.message) {
+          errorText = String(axiosErr.message);
         }
-      } else if (err.message) {
-        errorText = String(err.message);
       }
 
       const errorMsg: ChatMessage = {
@@ -423,8 +416,10 @@ export const AssistantPage: React.FC = () => {
                   <div className="whitespace-pre-line leading-relaxed font-normal">
                     {typeof msg.content === 'string'
                       ? msg.content
+                      : typeof msg.content === 'object' && msg.content !== null && 'msg' in msg.content
+                      ? String((msg.content as { msg: unknown }).msg)
                       : typeof msg.content === 'object' && msg.content !== null
-                      ? (msg.content as any).msg || JSON.stringify(msg.content)
+                      ? JSON.stringify(msg.content)
                       : String(msg.content ?? '')}
                   </div>
 
@@ -500,16 +495,22 @@ export const AssistantPage: React.FC = () => {
                   )}
 
                   {/* Warnings or Caveats Banner */}
-                  {!isUser && msg.warnings && msg.warnings.length > 0 && (
-                    <div className="mt-2.5 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-amber-800 dark:text-amber-300 text-xs">
-                      {msg.warnings.map((w, wIdx) => (
-                        <div key={wIdx} className="flex items-start gap-1.5">
-                          <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                          <span>{typeof w === 'string' ? w : JSON.stringify(w)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {!isUser && (() => {
+                    const filteredWarnings = (msg.warnings || []).filter(
+                      (w) => typeof w !== 'string' || !w.toLowerCase().includes('deterministic decision-support mode')
+                    );
+                    if (filteredWarnings.length === 0) return null;
+                    return (
+                      <div className="mt-2.5 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-amber-800 dark:text-amber-300 text-xs">
+                        {filteredWarnings.map((w, wIdx) => (
+                          <div key={wIdx} className="flex items-start gap-1.5">
+                            <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                            <span>{typeof w === 'string' ? w : JSON.stringify(w)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
 
                   {/* Contextual Suggested Follow-up Chips */}
                   {!isUser && msg.suggested_followups && msg.suggested_followups.length > 0 && (

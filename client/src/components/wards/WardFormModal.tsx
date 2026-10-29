@@ -149,7 +149,7 @@ export const WardFormModal: React.FC<WardFormModalProps> = ({
           {/* Super Admin Hospital Selector */}
           {isSuperAdmin && (
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 <Building className="w-3.5 h-3.5 text-sky-600" />
                 Target Hospital Facility <span className="text-rose-500">*</span>
               </label>

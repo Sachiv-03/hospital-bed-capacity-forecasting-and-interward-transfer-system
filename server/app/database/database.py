@@ -1,16 +1,30 @@
-from typing import Generator
+from collections.abc import Generator
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import declarative_base, sessionmaker
+
 from app.database.config import DATABASE_URL
 
-# Create SQLAlchemy Engine for Neon PostgreSQL with SSL & Pool Recycling
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=300,
-    echo=False,
-)
+# Normalize DATABASE_URL for compatibility
+db_url = DATABASE_URL
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+# Create SQLAlchemy Engine (supports both local SQLite and PostgreSQL)
+if db_url.startswith("sqlite"):
+    engine = create_engine(
+        db_url,
+        connect_args={"check_same_thread": False},
+        pool_pre_ping=True,
+    )
+else:
+    engine = create_engine(
+        db_url,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        echo=False,
+    )
 
 # Create SessionLocal class for DB sessions
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

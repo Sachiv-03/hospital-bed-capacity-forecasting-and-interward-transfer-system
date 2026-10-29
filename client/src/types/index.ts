@@ -227,19 +227,23 @@ export interface OccupancyEventListResponse {
   pages: number;
 }
 
-export type CapacityStatus = 'NORMAL' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+export type CapacityStatus = 'NORMAL' | 'MODERATE' | 'WARNING' | 'HIGH' | 'CRITICAL';
 
 export interface WardCapacity {
   ward_id: number;
   ward_name: string;
+  ward_type?: string;
   hospital_id: number;
   total_beds: number;
+  operational_beds?: number;
   occupied_beds: number;
   available_beds: number;
   cleaning_beds: number;
   reserved_beds: number;
   maintenance_beds: number;
+  inactive_beds?: number;
   occupancy_percentage: number;
+  available_capacity_percentage?: number;
   status: CapacityStatus;
 }
 
@@ -620,6 +624,7 @@ export interface Admission {
   hospital_name?: string | null;
   ward_name?: string | null;
   bed_number?: string | null;
+  bed?: { id?: number; bed_number?: string; bed_type?: string } | null;
   patient?: MinimalPatientInfo | null;
   duration_hours?: number | null;
 }
@@ -671,6 +676,7 @@ export interface PatientTransfer {
   created_at: string;
   updated_at: string;
 
+  hospital_name?: string | null;
   patient_name?: string | null;
   patient_identifier?: string | null;
   source_ward_name?: string | null;
@@ -754,6 +760,7 @@ export interface DestinationWardRecommendation {
 export interface PatientDestinationRecommendationResponse {
   hospital_id: number;
   patient_id?: number | null;
+  hospital_name?: string | null;
   patient_name?: string | null;
   patient_identifier?: string | null;
   source_ward_id: number;
@@ -853,5 +860,3 @@ export interface ManagementAnalyticsResponse {
   transfer_activity: ManagementTransferActivity;
   data_quality: ManagementDataQualitySummary;
 }
-
-

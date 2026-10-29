@@ -206,3 +206,51 @@ class HospitalService:
         db.commit()
         db.refresh(hospital)
         return HospitalService.get_hospital_by_id(db, hospital_id)
+
+    @staticmethod
+    def delete_hospital_permanently(db: Session, hospital_id: int) -> Dict[str, Any]:
+        """
+        Permanently delete hospital and all related cascading data.
+        Requires SUPER_ADMIN role.
+        """
+        hospital = db.query(Hospital).filter(Hospital.id == hospital_id).first()
+        if not hospital:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Hospital with ID {hospital_id} not found."
+            )
+
+        from app.models.audit_log import AuditLog
+        from app.models.transfer import Transfer
+        from app.models.transfer_recommendation import TransferRecommendation
+        from app.models.capacity_alert import CapacityAlert
+        from app.models.bed_capacity_forecast import BedCapacityForecast
+        from app.models.occupancy_snapshot import OccupancySnapshot
+        from app.models.occupancy_event import OccupancyEvent
+        from app.models.admission import Admission
+        from app.models.patient import Patient
+        from app.models.bed import Bed
+        from app.models.ward_transfer_rule import WardTransferRule
+        from app.models.user import User
+
+        db.query(AuditLog).filter(AuditLog.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(Transfer).filter(Transfer.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(TransferRecommendation).filter(TransferRecommendation.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(CapacityAlert).filter(CapacityAlert.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(BedCapacityForecast).filter(BedCapacityForecast.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(OccupancySnapshot).filter(OccupancySnapshot.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(OccupancyEvent).filter(OccupancyEvent.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(Admission).filter(Admission.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(Patient).filter(Patient.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(Bed).filter(Bed.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(WardTransferRule).filter(WardTransferRule.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(Ward).filter(Ward.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(User).filter(User.hospital_id == hospital_id).delete(synchronize_session=False)
+
+        name = hospital.name
+        db.delete(hospital)
+        db.commit()
+        return {
+            "success": True,
+            "message": f"Hospital '{name}' (ID: {hospital_id}) and all associated records have been permanently deleted."
+        }

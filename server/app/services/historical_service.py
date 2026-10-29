@@ -266,11 +266,11 @@ class HistoricalService:
         duplicate_snaps = dup_subq.count()
 
         # Invalid events (missing bed or ward reference)
-        invalid_events = 0
-        all_events = query_events.all()
-        for ev in all_events:
-            if not ev.bed_id or not ev.ward_id or not ev.hospital_id:
-                invalid_events += 1
+        invalid_events = query_events.filter(
+            (OccupancyEvent.bed_id.is_(None))
+            | (OccupancyEvent.ward_id.is_(None))
+            | (OccupancyEvent.hospital_id.is_(None))
+        ).count()
 
         last_snap = query_snaps.order_by(OccupancySnapshot.snapshot_time.desc()).first()
         last_time_str = last_snap.snapshot_time.isoformat() if last_snap else None

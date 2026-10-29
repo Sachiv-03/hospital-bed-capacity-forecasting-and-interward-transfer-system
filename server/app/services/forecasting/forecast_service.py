@@ -223,6 +223,7 @@ class ForecastService:
         ward_id: int,
         hospital_id: Optional[int] = None,
         horizon: int = 7,
+        generate_if_missing: bool = True,
     ) -> Dict[str, Any]:
         """
         Retrieves the latest generated forecast for a ward from DB, or generates one if missing.
@@ -242,20 +243,45 @@ class ForecastService:
             .first()
         )
 
-        if not latest_stamp:
-            # Generate fresh forecast
-            return cls.generate_ward_forecast(db=db, ward_id=ward_id, hospital_id=hospital_id, horizon=horizon, save_to_db=True)
-
-        gen_time = latest_stamp[0]
-        records = (
-            db.query(BedCapacityForecast)
-            .filter(BedCapacityForecast.ward_id == ward_id, BedCapacityForecast.generated_at == gen_time)
-            .order_by(BedCapacityForecast.forecast_date.asc())
-            .limit(horizon)
-            .all()
-        )
+        gen_time = latest_stamp[0] if latest_stamp else None
+        records = []
+        if gen_time:
+            records = (
+                db.query(BedCapacityForecast)
+                .filter(
+                    BedCapacityForecast.ward_id == ward_id,
+                    BedCapacityForecast.generated_at == gen_time,
+                )
+                .order_by(BedCapacityForecast.forecast_date.asc())
+                .limit(horizon)
+                .all()
+            )
 
         if not records:
+            if not generate_if_missing:
+                # Fast fallback to avoid blocking HTTP requests with synchronous SARIMA fitting
+                curr_occupied = db.query(Bed).filter(Bed.ward_id == ward_id, Bed.status == "OCCUPIED").count()
+                curr_total = db.query(Bed).filter(Bed.ward_id == ward_id).count() or ward.capacity
+                curr_pct = round((curr_occupied / curr_total) * 100.0, 2) if curr_total > 0 else 0.0
+                return {
+                    "ward_id": ward_id,
+                    "ward_name": ward.name,
+                    "hospital_id": ward.hospital_id,
+                    "total_beds": curr_total,
+                    "current_occupied_beds": curr_occupied,
+                    "current_occupancy_percentage": curr_pct,
+                    "horizon": 0,
+                    "model": "BASELINE",
+                    "model_version": "1.0",
+                    "generated_at": datetime.utcnow().isoformat(),
+                    "status": "PENDING_SCHEDULED",
+                    "required_observations": settings.FORECAST_MIN_OBSERVATIONS,
+                    "data_frequency": "DAILY",
+                    "forecasts": [],
+                    "max_predicted_occupancy": curr_pct,
+                    "max_predicted_date": None,
+                    "max_risk_level": "NORMAL",
+                }
             return cls.generate_ward_forecast(db=db, ward_id=ward_id, hospital_id=hospital_id, horizon=horizon, save_to_db=True)
 
         curr_occupied = db.query(Bed).filter(Bed.ward_id == ward_id, Bed.status == "OCCUPIED").count()
