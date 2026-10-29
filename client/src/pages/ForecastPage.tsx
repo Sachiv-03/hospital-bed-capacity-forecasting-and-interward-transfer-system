@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Ward } from '../types';
+import { Ward, Hospital } from '../types';
 import { getWards } from '../services/wardService';
+import { hospitalService } from '../services/hospitalService';
 import { forecastService, WardForecastResponse } from '../services/forecastService';
 import { ForecastSummaryCards } from '../components/forecast/ForecastSummaryCards';
 import { ForecastChart } from '../components/forecast/ForecastChart';
@@ -9,8 +10,29 @@ import { ForecastWarningBanner } from '../components/forecast/ForecastWarningBan
 import { ModelPerformanceCard } from '../components/forecast/ModelPerformanceCard';
 import { HospitalForecastOverview } from '../components/forecast/HospitalForecastOverview';
 import { CapacityAlertsSection } from '../components/CapacityAlertsSection';
-import { TrendingUp, RefreshCw, Cpu, CheckCircle2, AlertCircle, Play, Database, Calendar } from 'lucide-react';
+import {
+  TrendingUp,
+  RefreshCw,
+  Cpu,
+  CheckCircle2,
+  AlertCircle,
+  Play,
+  Database,
+  Calendar,
+  Building,
+} from 'lucide-react';
 import { getDataQualityReport, getWardCapacityHistory } from '../services/ingestionService';
+
+interface CapacityHistoryItem {
+  snapshot_time?: string;
+  date?: string;
+  occupancy_percentage?: number | string;
+}
+
+interface HistoricalDataPoint {
+  date: string;
+  occupancy_percentage: number;
+}
 
 interface HistoricalDataQualityReport {
   total_observations?: number;
@@ -37,32 +59,49 @@ const extractErrorMessage = (err: unknown, defaultMessage: string): string => {
 
 export const ForecastPage: React.FC = () => {
   const { user } = useAuth();
-  const hospitalId = user?.hospital_id || 1;
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
+  const [selectedHospitalId, setSelectedHospitalId] = useState<number>(user?.hospital_id || 1);
   const [wards, setWards] = useState<Ward[]>([]);
   const [selectedWardId, setSelectedWardId] = useState<number | null>(null);
   const [horizon, setHorizon] = useState<number>(7);
 
   const [forecastData, setForecastData] = useState<WardForecastResponse | null>(null);
-  const [historicalData, setHistoricalData] = useState<Array<{ date: string; occupancy_percentage: number }>>([]);
+  const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[]>([]);
   const [qualityReport, setQualityReport] = useState<HistoricalDataQualityReport | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Load Wards List and Quality Report
+  // Load all available hospitals for all users (Doctors, Nurses, Admins)
   useEffect(() => {
-    getDataQualityReport(hospitalId)
+    hospitalService
+      .getHospitals({ limit: 100 })
+      .then((res) => {
+        setHospitals(res.items);
+        if (res.items.length > 0 && !res.items.some((h) => h.id === selectedHospitalId)) {
+          setSelectedHospitalId(res.items[0].id);
+        }
+      })
+      .catch((err) => console.error('Failed to load hospitals list:', err));
+  }, []);
+
+  // Load Quality Report for selected hospital
+  useEffect(() => {
+    getDataQualityReport(selectedHospitalId)
       .then(setQualityReport)
       .catch((err) => console.error('Failed to load data quality report:', err));
-  }, [hospitalId]);
+  }, [selectedHospitalId]);
 
+  // Load Wards List for selected hospital
   useEffect(() => {
-    getWards({ limit: 100 })
+    getWards({ hospital_id: selectedHospitalId, limit: 100 })
       .then((res) => {
-        const hospWards = res.items.filter((w) => !hospitalId || w.hospital_id === hospitalId);
+        const hospWards = res.items.filter(
+          (w) => !selectedHospitalId || w.hospital_id === selectedHospitalId
+        );
         const finalWards = hospWards.length > 0 ? hospWards : res.items;
         // Sort so ICU appears first for immediate high-impact demo
         finalWards.sort((a, b) => {
@@ -71,10 +110,10 @@ export const ForecastPage: React.FC = () => {
           return a.name.localeCompare(b.name);
         });
         setWards(finalWards);
-        setSelectedWardId((prevId) => prevId ?? (finalWards.length > 0 ? finalWards[0].id : null));
+        setSelectedWardId(finalWards.length > 0 ? finalWards[0].id : null);
       })
       .catch((err) => console.error('Failed to load wards for forecasting:', err));
-  }, [hospitalId]);
+  }, [selectedHospitalId]);
 
   // Fetch Ward Forecast Data + 14-day history for the chart
   const fetchForecast = useCallback(async () => {
@@ -88,13 +127,13 @@ export const ForecastPage: React.FC = () => {
       ]);
       setForecastData(res);
       if (historyRes && Array.isArray(historyRes.items)) {
-        const mapped = historyRes.items
-          .map((item: any) => ({
-            date: item.snapshot_time ? item.snapshot_time.slice(0, 10) : (item.date || ''),
-            occupancy_percentage: Number(item.occupancy_percentage),
+        const mapped: HistoricalDataPoint[] = (historyRes.items as CapacityHistoryItem[])
+          .map((item) => ({
+            date: item.snapshot_time ? item.snapshot_time.slice(0, 10) : item.date || '',
+            occupancy_percentage: Number(item.occupancy_percentage || 0),
           }))
-          .filter((item: any) => Boolean(item.date))
-          .sort((a: any, b: any) => a.date.localeCompare(b.date));
+          .filter((item) => Boolean(item.date))
+          .sort((a, b) => a.date.localeCompare(b.date));
         setHistoricalData(mapped);
       }
     } catch (err: unknown) {
@@ -113,8 +152,10 @@ export const ForecastPage: React.FC = () => {
   const handleManualGenerate = async () => {
     setGenerating(true);
     try {
-      const res = await forecastService.generateManualForecast(hospitalId, horizon);
-      setToastMessage(`Forecast pipeline executed successfully! (${res.forecasts_generated} forecasts generated).`);
+      const res = await forecastService.generateManualForecast(selectedHospitalId, horizon);
+      setToastMessage(
+        `Forecast pipeline executed successfully! (${res.forecasts_generated} forecasts generated).`
+      );
       setTimeout(() => setToastMessage(null), 4000);
       fetchForecast();
     } catch (err: unknown) {
@@ -192,26 +233,51 @@ export const ForecastPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Ward & Horizon Controls */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">
-            Select Ward:
-          </label>
-          <select
-            value={selectedWardId || ''}
-            onChange={(e) => setSelectedWardId(Number(e.target.value))}
-            className="w-full sm:w-64 px-3.5 py-2 text-sm bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-all font-bold"
-          >
-            {wards.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name} ({w.ward_type}) &bull; {w.capacity} beds
-              </option>
-            ))}
-          </select>
+      {/* Hospital, Ward & Horizon Controls */}
+      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Hospital Selector for All Roles */}
+          {hospitals.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                <Building className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                Hospital:
+              </label>
+              <select
+                value={selectedHospitalId}
+                onChange={(e) => setSelectedHospitalId(Number(e.target.value))}
+                className="px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-all font-bold"
+              >
+                {hospitals.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name} ({h.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Ward Selector */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">
+              Ward:
+            </label>
+            <select
+              value={selectedWardId || ''}
+              onChange={(e) => setSelectedWardId(Number(e.target.value))}
+              className="w-full sm:w-60 px-3.5 py-2 text-sm bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-all font-bold"
+            >
+              {wards.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name} ({w.ward_type}) &bull; {w.capacity} beds
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Horizon Buttons */}
+        <div className="flex items-center gap-2 self-start md:self-auto">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
             Horizon:
           </span>
@@ -238,9 +304,12 @@ export const ForecastPage: React.FC = () => {
         <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs flex flex-wrap items-center justify-between gap-3 text-slate-600 dark:text-slate-300">
           <div className="flex items-center gap-2">
             <Database className="w-4 h-4 text-sky-500" />
-            <span className="font-bold text-slate-800 dark:text-slate-100">Historical Data Coverage:</span>
+            <span className="font-bold text-slate-800 dark:text-slate-100">
+              Historical Data Coverage:
+            </span>
             <span>
-              {qualityReport.total_observations ?? qualityReport.total_snapshots ?? 0} daily records ({qualityReport.data_frequency || 'DAILY'})
+              {qualityReport.total_observations ?? qualityReport.total_snapshots ?? 0} daily records (
+              {qualityReport.data_frequency || 'DAILY'})
             </span>
           </div>
 
@@ -248,7 +317,9 @@ export const ForecastPage: React.FC = () => {
             <Calendar className="w-4 h-4 text-purple-500" />
             <span className="font-bold text-slate-800 dark:text-slate-100">Date Range:</span>
             <span>
-              {qualityReport.earliest_observation_date ? `${qualityReport.earliest_observation_date} to ${qualityReport.latest_observation_date}` : 'Continuous'}
+              {qualityReport.earliest_observation_date
+                ? `${qualityReport.earliest_observation_date} to ${qualityReport.latest_observation_date}`
+                : 'Continuous'}
             </span>
           </div>
 
@@ -282,13 +353,13 @@ export const ForecastPage: React.FC = () => {
       />
 
       {/* Explainable AI Bed Capacity Alerts Section */}
-      <CapacityAlertsSection hospitalId={hospitalId} />
+      <CapacityAlertsSection hospitalId={selectedHospitalId} />
 
       {/* Model Performance Comparison Card */}
       {selectedWardId && <ModelPerformanceCard wardId={selectedWardId} />}
 
       {/* Hospital Overview Card */}
-      <HospitalForecastOverview hospitalId={hospitalId} />
+      <HospitalForecastOverview hospitalId={selectedHospitalId} />
     </div>
   );
 };

@@ -3,8 +3,9 @@ import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { bedService } from '../../services/bedService';
 import { getWards } from '../../services/wardService';
+import { hospitalService } from '../../services/hospitalService';
 import { ingestEvent } from '../../services/ingestionService';
-import { Bed, BedStatus, BedType, Ward, OccupancyEventType } from '../../types';
+import { Bed, BedStatus, BedType, Ward, Hospital, OccupancyEventType } from '../../types';
 import {
   BedDouble,
   Search,
@@ -70,6 +71,8 @@ const getApiErrorMessage = (err: unknown, fallback: string): string => {
 
 export const BedsPage: React.FC = () => {
   const { user } = useAuth();
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
+  const [selectedHospitalId, setSelectedHospitalId] = useState<number>(user?.hospital_id || 1);
   const [beds, setBeds] = useState<Bed[]>([]);
   const [wards, setWards] = useState<Ward[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -99,8 +102,20 @@ export const BedsPage: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
 
-  const activeHospitalId = user?.hospital_id || 1;
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+
+  // Load all available hospitals for all users
+  useEffect(() => {
+    hospitalService
+      .getHospitals({ limit: 100 })
+      .then((res) => {
+        setHospitals(res.items);
+        if (res.items.length > 0 && !res.items.some((h) => h.id === selectedHospitalId)) {
+          setSelectedHospitalId(res.items[0].id);
+        }
+      })
+      .catch((err) => console.error('Failed to load hospitals list:', err));
+  }, []);
 
   // ── Load Wards & Beds ─────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -108,15 +123,15 @@ export const BedsPage: React.FC = () => {
       setError(null);
       const [bedData, wardData] = await Promise.all([
         bedService.getBeds({
-          hospital_id: activeHospitalId,
+          hospital_id: selectedHospitalId,
           limit: 200,
         }),
-        getWards({ hospital_id: activeHospitalId, limit: 100 }),
+        getWards({ hospital_id: selectedHospitalId, limit: 100 }),
       ]);
       setBeds(bedData.items || []);
       setWards(wardData.items || []);
-      if (wardData.items && wardData.items.length > 0 && !newBedWardId) {
-        setNewBedWardId(wardData.items[0].id);
+      if (wardData.items && wardData.items.length > 0) {
+        setNewBedWardId((prev) => (prev ? prev : wardData.items[0].id));
       }
     } catch (err: unknown) {
       console.error('Failed to load bed telemetry:', err);
@@ -125,7 +140,7 @@ export const BedsPage: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeHospitalId, newBedWardId]);
+  }, [selectedHospitalId]);
 
   useEffect(() => {
     loadData();
@@ -144,7 +159,7 @@ export const BedsPage: React.FC = () => {
     setSubmittingAdd(true);
     try {
       await bedService.createBed({
-        hospital_id: activeHospitalId,
+        hospital_id: selectedHospitalId,
         ward_id: Number(newBedWardId),
         bed_number: newBedNumber.trim().toUpperCase(),
         bed_type: newBedType,
@@ -352,6 +367,30 @@ export const BedsPage: React.FC = () => {
               className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
             />
           </div>
+
+          {/* Hospital Select */}
+          {hospitals.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1 shrink-0">
+                <Building className="w-3.5 h-3.5 text-sky-500" />
+                Hospital:
+              </label>
+              <select
+                value={selectedHospitalId}
+                onChange={(e) => {
+                  setSelectedHospitalId(Number(e.target.value));
+                  setSelectedWardId('ALL');
+                }}
+                className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-sky-500"
+              >
+                {hospitals.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name} ({h.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Ward Select */}
           <div className="flex items-center gap-2">

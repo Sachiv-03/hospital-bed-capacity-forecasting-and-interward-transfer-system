@@ -1,30 +1,30 @@
-import React, { useState, useEffect } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import {
-  LayoutDashboard,
-  Users,
-  BedDouble,
-  Building2,
-  TrendingUp,
+  Activity,
   ArrowRightLeft,
   BarChart3,
-  FileText,
-  Settings,
-  LogOut,
-  Search,
+  BedDouble,
   Bell,
-  Sun,
-  Moon,
-  Activity,
-  Menu,
-  X,
   Building,
+  Building2,
+  FileText,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Moon,
+  Search,
+  Settings,
   ShieldAlert,
   Sparkles,
+  Sun,
+  TrendingUp,
+  Users,
+  X,
 } from 'lucide-react';
-import { cn } from '../utils/cn';
+import React, { useEffect, useState } from 'react';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { getCapacityAlertSummary } from '../services/ingestionService';
+import { cn } from '../utils/cn';
 
 interface SidebarItemProps {
   name: string;
@@ -126,8 +126,15 @@ export const DashboardLayout: React.FC = () => {
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'AI Assistant', path: '/assistant', icon: Sparkles, badge: 'AI' },
-    ...(isSuperAdmin ? [{ name: 'Hospitals', path: '/hospitals', icon: Building, badge: 'System' }] : []),
-    { name: 'Alerts', path: '/alerts', icon: ShieldAlert, badge: unreadAlerts > 0 ? String(unreadAlerts) : undefined },
+    ...(isSuperAdmin
+      ? [{ name: 'Hospitals', path: '/hospitals', icon: Building, badge: 'System' }]
+      : []),
+    {
+      name: 'Alerts',
+      path: '/alerts',
+      icon: ShieldAlert,
+      badge: unreadAlerts > 0 ? String(unreadAlerts) : undefined,
+    },
     { name: 'Patients', path: '/patients', icon: Users },
     { name: 'Beds', path: '/beds', icon: BedDouble },
     { name: 'Wards', path: '/wards', icon: Building2 },
@@ -172,7 +179,7 @@ export const DashboardLayout: React.FC = () => {
             </div>
             <div className="hidden sm:block">
               <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-sky-700 to-indigo-800 dark:from-sky-400 dark:to-indigo-300 bg-clip-text text-transparent">
-                CareFlow AI
+                CareFlow
               </span>
               <span className="block text-[10px] uppercase font-bold tracking-widest text-slate-400 dark:text-slate-500">
                 Hospital Command Center
@@ -205,7 +212,9 @@ export const DashboardLayout: React.FC = () => {
           <button
             onClick={() => navigate('/alerts')}
             className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title={unreadAlerts > 0 ? `${unreadAlerts} active capacity alert(s)` : 'Capacity Alerts'}
+            title={
+              unreadAlerts > 0 ? `${unreadAlerts} active capacity alert(s)` : 'Capacity Alerts'
+            }
           >
             <Bell className="w-5 h-5" />
             {unreadAlerts > 0 ? (
@@ -223,7 +232,11 @@ export const DashboardLayout: React.FC = () => {
             className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
-            {isDarkMode ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
+            {isDarkMode ? (
+              <Sun className="w-5 h-5 text-amber-400" />
+            ) : (
+              <Moon className="w-5 h-5 text-slate-600" />
+            )}
           </button>
 
           <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden sm:block" />
@@ -253,7 +266,9 @@ export const DashboardLayout: React.FC = () => {
         <aside
           className={cn(
             'fixed lg:static inset-y-0 left-0 z-20 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between transition-all duration-300 transform',
-            isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:w-0 lg:overflow-hidden lg:-translate-x-0'
+            isSidebarOpen
+              ? 'translate-x-0'
+              : '-translate-x-full lg:w-0 lg:overflow-hidden lg:-translate-x-0'
           )}
         >
           {/* Navigation Link List */}
@@ -278,7 +293,9 @@ export const DashboardLayout: React.FC = () => {
             <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-3">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
               <div>
-                <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Tenant Isolated Session</p>
+                <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                  Tenant Isolated Session
+                </p>
                 <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
                   {activeHospitalName}
                 </p>
@@ -304,12 +321,15 @@ export const DashboardLayout: React.FC = () => {
           {/* Footer */}
           <footer className="mt-12 pt-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2 max-w-7xl mx-auto w-full">
             <div>
-              © 2026 AI-Powered Hospital Bed Capacity & Transfer System. Multi-Hospital Phase 3 Active.
+              © 2026 AI-Powered Hospital Bed Capacity & Transfer System. Multi-Hospital Phase 3
+              Active.
             </div>
             <div className="flex items-center gap-4">
               <span>Multi-Tenant Architecture</span>
               <span>•</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">Tenant Data Isolation Enforced</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                Tenant Data Isolation Enforced
+              </span>
             </div>
           </footer>
         </main>
