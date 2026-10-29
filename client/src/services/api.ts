@@ -1,7 +1,17 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { AuthTokens, HealthStatus } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+const getSanitizedApiBaseUrl = (): string => {
+  let url = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+  if (url.startsWith('http://https://')) {
+    url = url.replace('http://https://', 'https://');
+  } else if (url.startsWith('https://http://')) {
+    url = url.replace('https://http://', 'https://');
+  }
+  return url;
+};
+
+const API_BASE_URL = getSanitizedApiBaseUrl();
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
