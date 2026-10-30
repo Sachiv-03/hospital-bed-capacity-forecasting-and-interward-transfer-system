@@ -162,16 +162,16 @@ export const BedsPage: React.FC = () => {
     }
   };
 
-  // ── Delete Bed Handler ────────────────────────────────────────────────────
+  // ── Remove Bed Handler ────────────────────────────────────────────────────
   const handleDeleteBed = async (bedId: number, bedNumber: string) => {
-    if (!window.confirm(`Are you sure you want to delete bed ${bedNumber}?`)) return;
+    if (!window.confirm(`Are you sure you want to remove bed ${bedNumber}?`)) return;
     try {
       await bedService.deleteBed(bedId);
-      setActionSuccessMsg(`Bed ${bedNumber} deleted.`);
+      setActionSuccessMsg(`Bed ${bedNumber} removed.`);
       setTimeout(() => setActionSuccessMsg(null), 3000);
       loadData();
     } catch (err: unknown) {
-      alert(getApiErrorMessage(err, 'Failed to delete bed'));
+      alert(getApiErrorMessage(err, 'Failed to remove bed'));
     }
   };
 
@@ -261,15 +261,13 @@ export const BedsPage: React.FC = () => {
             Refresh
           </button>
 
-          {isAdmin && (
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition-all shadow-md hover:shadow-lg"
-            >
-              <Plus className="w-4 h-4" />
-              Add New Bed
-            </button>
-          )}
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition-all shadow-md hover:shadow-lg"
+          >
+            <Plus className="w-4 h-4" />
+            Add Bed
+          </button>
         </div>
       </div>
 
@@ -469,15 +467,13 @@ export const BedsPage: React.FC = () => {
                     <span className="font-mono bg-white/60 dark:bg-slate-900/60 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800">
                       {bed.bed_type}
                     </span>
-                    {isAdmin && (
-                      <button
-                        onClick={() => handleDeleteBed(bed.id, bed.bed_number)}
-                        className="text-slate-400 hover:text-rose-600 transition-colors p-1"
-                        title="Delete Bed"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleDeleteBed(bed.id, bed.bed_number)}
+                      className="text-slate-400 hover:text-rose-600 transition-colors p-1"
+                      title="Remove Bed"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
 
@@ -485,11 +481,14 @@ export const BedsPage: React.FC = () => {
                 <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center gap-1.5 flex-wrap">
                   {bed.status === 'AVAILABLE' && (
                     <button
-                      onClick={() => openEventModal(bed, 'ADMISSION')}
-                      className="w-full flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-all shadow-xs"
+                      onClick={() => {
+                        setNewBedWardId(bed.ward_id);
+                        setShowAddModal(true);
+                      }}
+                      className="w-full flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-bold transition-all shadow-xs"
                     >
-                      <UserPlus className="w-3.5 h-3.5" />
-                      Admit Patient
+                      <Plus className="w-3.5 h-3.5" />
+                      Add Bed
                     </button>
                   )}
 
@@ -500,7 +499,7 @@ export const BedsPage: React.FC = () => {
                         className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold transition-all shadow-xs"
                       >
                         <UserMinus className="w-3.5 h-3.5" />
-                        Discharge
+                        Remove
                       </button>
                       <button
                         onClick={() => openEventModal(bed, 'BED_CLEANING')}
@@ -674,7 +673,7 @@ export const BedsPage: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Process Bed Event: {targetEventType}
+                  Process Bed Event: {targetEventType === 'DISCHARGE' ? 'REMOVE OCCUPANT' : targetEventType}
                 </h3>
                 <p className="text-xs text-slate-500">
                   Bed: <span className="font-bold text-sky-600">{selectedBedForEvent.bed_number}</span> (Current status: {selectedBedForEvent.status})
@@ -710,7 +709,11 @@ export const BedsPage: React.FC = () => {
                 disabled={actionLoading}
                 className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition-all shadow-md disabled:opacity-50"
               >
-                {actionLoading ? 'Processing...' : `Confirm ${targetEventType}`}
+                {actionLoading
+                  ? 'Processing...'
+                  : targetEventType === 'DISCHARGE'
+                  ? 'Confirm Removal'
+                  : `Confirm ${targetEventType}`}
               </button>
             </div>
           </div>
