@@ -480,16 +480,18 @@ export const BedsPage: React.FC = () => {
                 {/* Event State Transition Quick Actions */}
                 <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center gap-1.5 flex-wrap">
                   {bed.status === 'AVAILABLE' && (
-                    <button
-                      onClick={() => {
-                        setNewBedWardId(bed.ward_id);
-                        setShowAddModal(true);
-                      }}
-                      className="w-full flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-bold transition-all shadow-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Add Bed
-                    </button>
+                    <div className="w-full flex items-center justify-between py-0.5">
+                      <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Available & Ready
+                      </span>
+                      <button
+                        onClick={() => openEventModal(bed, 'BED_MAINTENANCE')}
+                        className="text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline"
+                      >
+                        Maintenance
+                      </button>
+                    </div>
                   )}
 
                   {bed.status === 'OCCUPIED' && (
@@ -531,7 +533,7 @@ export const BedsPage: React.FC = () => {
                     </button>
                   )}
 
-                  {bed.status !== 'MAINTENANCE' && bed.status !== 'OCCUPIED' && (
+                  {bed.status !== 'MAINTENANCE' && bed.status !== 'OCCUPIED' && bed.status !== 'AVAILABLE' && (
                     <button
                       onClick={() => openEventModal(bed, 'BED_MAINTENANCE')}
                       className="text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline mt-1"
