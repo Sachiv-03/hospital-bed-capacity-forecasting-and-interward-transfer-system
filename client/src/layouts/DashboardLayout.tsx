@@ -6,13 +6,11 @@ import {
   Bell,
   Building,
   Building2,
-  FileText,
   LayoutDashboard,
   LogOut,
   Menu,
   Moon,
   Search,
-  Settings,
   ShieldAlert,
   Sparkles,
   Sun,
@@ -141,8 +139,6 @@ export const DashboardLayout: React.FC = () => {
     { name: 'Forecast', path: '/forecast', icon: TrendingUp },
     { name: 'Transfers', path: '/transfers', icon: ArrowRightLeft },
     { name: 'Analytics', path: '/analytics', icon: BarChart3 },
-    { name: 'Reports', path: '/reports', icon: FileText },
-    { name: 'Settings', path: '/settings', icon: Settings },
   ];
 
   // Helper for initials
@@ -178,7 +174,7 @@ export const DashboardLayout: React.FC = () => {
               <Activity className="w-5 h-5 stroke-[2.5]" />
             </div>
             <div className="hidden sm:block">
-              <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-sky-700 to-indigo-800 dark:from-sky-400 dark:to-indigo-300 bg-clip-text text-transparent">
+              <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-sky-700 to-indigo-800 dark:from-sky-400 dark:to-indigo-300 bg-clip-text text-tranvsparent">
                 CareFlow
               </span>
               <span className="block text-[10px] uppercase font-bold tracking-widest text-slate-400 dark:text-slate-500">
